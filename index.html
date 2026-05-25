@@ -796,7 +796,7 @@ async function loadDashboard() {
     const [comerciosSnap, vecinosSnap, pubsSnap] = await Promise.all([
       db.collection('comercios').get(),
       db.collection('usuarios').where('rol', '==', 'vecino').get(),
-      db.collection('Publicaciones').where('activa', '==', true).get(),
+      db.collection('Publicaciones').where('expira_en', '>', firebase.firestore.Timestamp.now()).get(),
     ]);
 
     const comercios = comerciosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -972,7 +972,7 @@ async function loadPublicaciones() {
   const contenedor = document.getElementById('tabla-publicaciones');
   contenedor.innerHTML = '<div class="spinner"></div>';
   try {
-    const snap = await db.collection('Publicaciones').orderBy('timestamp', 'desc').limit(100).get();
+    const snap = await db.collection('Publicaciones').orderBy('expira_en', 'desc').limit(100).get();
     const pubs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (!pubs.length) { contenedor.innerHTML = '<div class="empty">Sin publicaciones</div>'; return; }
 
@@ -982,7 +982,7 @@ async function loadPublicaciones() {
         <tbody>${lista.map(p => `<tr>
           <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${p.titulo || '—'}</td>
           <td style="font-size:0.83rem;color:var(--text-2)">${p.nombre_comercio || '—'}</td>
-          <td><span class="badge ${p.activa ? 'activo' : 'inactivo'}">${p.activa ? 'Activa' : 'Expirada'}</span></td>
+          <td><span class="badge ${p.expira_en && p.expira_en.toDate() > new Date() ? 'activo' : 'inactivo'}">${p.expira_en && p.expira_en.toDate() > new Date() ? 'Activa' : 'Expirada'}</span></td>
           <td style="font-family:'DM Mono',monospace;font-size:0.8rem">${p.vistas || 0}</td>
           <td style="font-family:'DM Mono',monospace;font-size:0.8rem">${p.clics || 0}</td>
           <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(p.timestamp)}</td>
