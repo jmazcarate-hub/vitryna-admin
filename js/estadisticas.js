@@ -1,4 +1,3 @@
-// Instancias de gráficas para poder destruirlas al recargar
 let chartPubsDia    = null;
 let chartRegistros  = null;
 let chartEngagement = null;
@@ -26,7 +25,6 @@ async function cargarKpisEngagement() {
   const totalVistas = pubs.reduce((s, p) => s + (p.vistas || 0), 0);
   const totalClics  = pubs.reduce((s, p) => s + (p.clics  || 0), 0);
   const ctr = totalVistas > 0 ? ((totalClics / totalVistas) * 100).toFixed(1) + '%' : '0%';
-
   document.getElementById('est-vistas').textContent     = totalVistas.toLocaleString('es-ES');
   document.getElementById('est-vistas-sub').textContent = 'En todas las publicaciones';
   document.getElementById('est-clics').textContent      = totalClics.toLocaleString('es-ES');
@@ -38,11 +36,9 @@ async function cargarKpisEngagement() {
 
 // ── PUBLICACIONES POR DÍA (últimos 30 días) ──
 async function cargarGraficaPubsDia() {
-  // Traer todas y filtrar en cliente — evita índices compuestos
   const snap = await db.collection('Publicaciones').get();
   const hace30 = new Date();
   hace30.setDate(hace30.getDate() - 30);
-
   const mapa = {};
   snap.docs.forEach(doc => {
     const ts = doc.data().timestamp;
@@ -52,43 +48,27 @@ async function cargarGraficaPubsDia() {
     const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     mapa[key] = (mapa[key] || 0) + 1;
   });
-
   const { labels, valores } = generarEjesDias(30, mapa);
-
   const ctx = document.getElementById('chart-pubs-dia').getContext('2d');
   if (chartPubsDia) chartPubsDia.destroy();
   chartPubsDia = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Publicaciones',
-        data: valores,
-        backgroundColor: 'rgba(26,107,255,0.15)',
-        borderColor: '#1A6BFF',
-        borderWidth: 2,
-        borderRadius: 4,
-      }]
-    },
+    data: { labels, datasets: [{ label: 'Publicaciones', data: valores, backgroundColor: 'rgba(26,107,255,0.15)', borderColor: '#1A6BFF', borderWidth: 2, borderRadius: 4 }] },
     options: opcionesBase()
   });
 }
 
 // ── NUEVOS REGISTROS POR SEMANA (últimas 8 semanas) ──
-// Sin filtros en query para evitar necesidad de índices compuestos
 async function cargarGraficaRegistros() {
   const hace8sem = new Date();
   hace8sem.setDate(hace8sem.getDate() - 56);
-
   const [comSnap, usuSnap] = await Promise.all([
     db.collection('comercios').get(),
     db.collection('usuarios').get(),
   ]);
-
   const { labels, semanas } = generarEjesSemanas(8);
   const dataCom = new Array(8).fill(0);
   const dataVec = new Array(8).fill(0);
-
   comSnap.docs.forEach(doc => {
     const ts = doc.data().creado_en;
     if (!ts) return;
@@ -97,10 +77,8 @@ async function cargarGraficaRegistros() {
     const idx = semanaIndex(fecha, semanas);
     if (idx >= 0) dataCom[idx]++;
   });
-
   usuSnap.docs.forEach(doc => {
     const d = doc.data();
-    // Solo vecinos (rol vecino o sin rol comercio/admin)
     if (d.rol && d.rol !== 'vecino') return;
     const ts = d.creado_en;
     if (!ts) return;
@@ -109,24 +87,17 @@ async function cargarGraficaRegistros() {
     const idx = semanaIndex(fecha, semanas);
     if (idx >= 0) dataVec[idx]++;
   });
-
   const ctx = document.getElementById('chart-registros').getContext('2d');
   if (chartRegistros) chartRegistros.destroy();
   chartRegistros = new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Comercios', data: dataCom, backgroundColor: 'rgba(26,107,255,0.7)', borderRadius: 4 },
-        { label: 'Vecinos',   data: dataVec, backgroundColor: 'rgba(255,170,0,0.7)',  borderRadius: 4 },
-      ]
-    },
+    data: { labels, datasets: [
+      { label: 'Comercios', data: dataCom, backgroundColor: 'rgba(26,107,255,0.7)', borderRadius: 4 },
+      { label: 'Vecinos',   data: dataVec, backgroundColor: 'rgba(255,170,0,0.7)',  borderRadius: 4 },
+    ]},
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { family: 'DM Sans', size: 11 }, padding: 12 } }
-      },
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { family: 'DM Sans', size: 11 }, padding: 12 } } },
       scales: {
         x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 10 } } },
         y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } }
@@ -135,20 +106,20 @@ async function cargarGraficaRegistros() {
   });
 }
 
-// ── VISTAS Y CLICS POR DÍA (últimos 30 días desde stats_diarias) ──
+// ── VISTAS Y CLICS POR DÍA — formato IDs: YYYY-MM-DD ──
 async function cargarGraficaEngagement() {
+  // Generar fechas en formato YYYY-MM-DD (igual que Firestore)
   const fechas = [];
   for (let i = 29; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    fechas.push(`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`);
+    fechas.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
   }
 
   const pubsSnap = await db.collection('Publicaciones').get();
   const mapaVistas = {};
   const mapaClics  = {};
 
-  // Leer stats_diarias de cada publicación sin filtro para evitar índices
   await Promise.all(pubsSnap.docs.map(async pubDoc => {
     const statsSnap = await db.collection('Publicaciones').doc(pubDoc.id)
       .collection('stats_diarias').get();
@@ -160,7 +131,7 @@ async function cargarGraficaEngagement() {
     });
   }));
 
-  const labels = fechas.map(f => `${f.slice(6)}/${f.slice(4,6)}`);
+  const labels = fechas.map(f => `${f.slice(8)}/${f.slice(5,7)}`);  // DD/MM
   const vistas = fechas.map(f => mapaVistas[f] || 0);
   const clics  = fechas.map(f => mapaClics[f]  || 0);
 
@@ -168,13 +139,10 @@ async function cargarGraficaEngagement() {
   if (chartEngagement) chartEngagement.destroy();
   chartEngagement = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Vistas', data: vistas, borderColor: '#1A6BFF', backgroundColor: 'rgba(26,107,255,0.08)', borderWidth: 2, pointRadius: 3, tension: 0.3, fill: true },
-        { label: 'Clics',  data: clics,  borderColor: '#FFAA00', backgroundColor: 'rgba(255,170,0,0.08)',  borderWidth: 2, pointRadius: 3, tension: 0.3, fill: true },
-      ]
-    },
+    data: { labels, datasets: [
+      { label: 'Vistas', data: vistas, borderColor: '#1A6BFF', backgroundColor: 'rgba(26,107,255,0.08)', borderWidth: 2, pointRadius: 3, tension: 0.3, fill: true },
+      { label: 'Clics',  data: clics,  borderColor: '#FFAA00', backgroundColor: 'rgba(255,170,0,0.08)',  borderWidth: 2, pointRadius: 3, tension: 0.3, fill: true },
+    ]},
     options: opcionesBase()
   });
 }
@@ -231,8 +199,7 @@ async function cargarTopPublicaciones() {
 // ── HELPERS ──
 function opcionesBase() {
   return {
-    responsive: true,
-    maintainAspectRatio: false,
+    responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom', labels: { font: { family: 'DM Sans', size: 11 }, padding: 12 } } },
     scales: {
       x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 10 }, maxRotation: 45 } },
@@ -254,7 +221,6 @@ function generarEjesDias(n, mapa) {
 function generarEjesSemanas(n) {
   const semanas = [], labels = [];
   const hoy = new Date();
-  // Normalizar a inicio del día para comparaciones limpias
   hoy.setHours(23, 59, 59, 999);
   for (let i = n - 1; i >= 0; i--) {
     const fin = new Date(hoy);
