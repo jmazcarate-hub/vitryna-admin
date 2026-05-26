@@ -105,6 +105,7 @@ function ejecutarSeccion(nombre) {
     publicaciones: () => typeof loadPublicaciones === 'function' && loadPublicaciones(),
     colaboradores: () => typeof loadColaboradores === 'function' && loadColaboradores(),
     finanzas:      () => typeof loadFinanzas      === 'function' && loadFinanzas(),
+    estadisticas:  () => typeof loadEstadisticas === 'function' && loadEstadisticas(),
     config:        () => typeof loadConfig        === 'function' && loadConfig(),
   };
   if (fnMap[nombre]) fnMap[nombre]();
@@ -130,7 +131,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
     document.getElementById('section-' + sec).classList.add('active');
     document.getElementById('topbar-title').textContent = seccionMeta[sec].title;
     document.getElementById('topbar-sub').textContent   = seccionMeta[sec].sub;
-    if (sec !== 'estadisticas') cargarModulo(sec);
+    cargarModulo(sec);
   });
 });
 
