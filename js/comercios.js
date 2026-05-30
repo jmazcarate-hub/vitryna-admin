@@ -147,12 +147,82 @@ async function abrirModalComercio(id) {
     }
   }
 
+  // Sección monedero de boosts
+  const mcBoosts = document.getElementById('mc-btns-boosts');
+  if (mcBoosts) {
+    const b4h  = c.boosts_4h  || 0;
+    const b24h = c.boosts_24h || 0;
+    mcBoosts.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div style="padding:12px;background:var(--orange-light);border-radius:10px;text-align:center;">
+          <div style="font-size:0.72rem;color:var(--orange);font-weight:500;margin-bottom:2px;">Boosts 4h</div>
+          <div style="font-size:1.6rem;font-weight:700;color:var(--orange);" id="mc-b4h-val">${b4h}</div>
+        </div>
+        <div style="padding:12px;background:var(--blue-light);border-radius:10px;text-align:center;">
+          <div style="font-size:0.72rem;color:var(--blue);font-weight:500;margin-bottom:2px;">Boosts 24h</div>
+          <div style="font-size:1.6rem;font-weight:700;color:var(--blue);" id="mc-b24h-val">${b24h}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <select id="mc-boost-tipo" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.85rem;background:var(--surface);">
+          <option value="4h">Boosts 4h</option>
+          <option value="24h">Boosts 24h</option>
+        </select>
+        <input type="number" id="mc-boost-cantidad" value="5" min="1" max="100"
+          style="width:70px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.85rem;background:var(--surface);">
+        <button class="btn-secondary" onclick="ajustarBoosts(1)" style="padding:7px 14px;">
+          <span style="color:var(--green);font-weight:700;">+ Añadir</span>
+        </button>
+        <button class="btn-secondary" onclick="ajustarBoosts(-1)" style="padding:7px 14px;">
+          <span style="color:var(--red);font-weight:700;">− Restar</span>
+        </button>
+      </div>`;
+  }
+
   document.getElementById('modal-comercio').classList.add('open');
 }
 
 function cerrarModalComercio() {
   document.getElementById('modal-comercio').classList.remove('open');
   comercioModalId = null;
+}
+
+async function ajustarBoosts(signo) {
+  if (!comercioModalId) return;
+  const tipo = document.getElementById('mc-boost-tipo').value;
+  const cantidad = parseInt(document.getElementById('mc-boost-cantidad').value) || 1;
+  const delta = signo * cantidad;
+  const field = tipo === '4h' ? 'boosts_4h' : 'boosts_24h';
+  const label = tipo === '4h' ? 'boosts 4h' : 'boosts 24h';
+  const accion = signo > 0 ? 'añadir' : 'restar';
+
+  // Verificar que no quede negativo al restar
+  const c = todosComercios.find(x => x.id === comercioModalId);
+  if (signo < 0) {
+    const actual = (tipo === '4h' ? c?.boosts_4h : c?.boosts_24h) || 0;
+    if (actual + delta < 0) {
+      toast(`No se puede restar más de los ${actual} ${label} disponibles`, 'error');
+      return;
+    }
+  }
+
+  if (!confirm(`¿${accion.charAt(0).toUpperCase() + accion.slice(1)} ${cantidad} ${label} al monedero de ${c?.nombre_comercio}?`)) return;
+
+  try {
+    await db.collection('comercios').doc(comercioModalId).update({
+      [field]: firebase.firestore.FieldValue.increment(delta),
+    });
+    // Actualizar cache local
+    const idx = todosComercios.findIndex(x => x.id === comercioModalId);
+    if (idx >= 0) todosComercios[idx][field] = (todosComercios[idx][field] || 0) + delta;
+
+    // Actualizar contadores en el modal
+    const nuevoValor = ((tipo === '4h' ? todosComercios[idx]?.boosts_4h : todosComercios[idx]?.boosts_24h) || 0);
+    const elVal = document.getElementById(tipo === '4h' ? 'mc-b4h-val' : 'mc-b24h-val');
+    if (elVal) elVal.textContent = nuevoValor;
+
+    toast(`${signo > 0 ? '+' : ''}${delta} ${label} ${signo > 0 ? 'añadidos' : 'restados'}`, 'success');
+  } catch(e) { toast('Error al ajustar boosts: ' + e.message, 'error'); }
 }
 
 async function cambiarPlanComercio(plan) {
