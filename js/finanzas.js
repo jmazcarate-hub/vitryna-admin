@@ -44,7 +44,7 @@ async function loadFinanzas() {
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <div>
-            <label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:3px;">Próximo número</label>
+            <label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:3px;">Último número emitido</label>
             <input type="number" id="fin-contador" value="${contadorActual}" min="0"
               style="width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg);">
           </div>
