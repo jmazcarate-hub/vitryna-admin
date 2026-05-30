@@ -36,6 +36,8 @@ function renderComercios() {
     if (filtroCom === 'multi'        && plan !== 'multi') return false;
     if (filtroCom === 'caducado'     && !(dias !== null && dias < 0)) return false;
     if (filtroCom === 'vence-pronto' && !(dias !== null && dias >= 0 && dias <= 7)) return false;
+    if (filtroCom === 'con-boosts4h'  && !((c.boosts_4h  || 0) > 0)) return false;
+    if (filtroCom === 'con-boosts24h' && !((c.boosts_24h || 0) > 0)) return false;
     if (q && !`${c.nombre_comercio} ${c.cif_nif} ${c.email}`.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -49,7 +51,7 @@ function renderComercios() {
       ${filtroCom !== 'todos' ? ` · filtro: <strong>${filtroCom}</strong>` : ''}
     </div>
     <table>
-      <thead><tr><th>Comercio</th><th>Categoría</th><th>Plan</th><th>Vencimiento</th><th>Stripe</th><th>Registro</th><th>Acciones</th></tr></thead>
+      <thead><tr><th>Comercio</th><th>Categoría</th><th>Plan</th><th>Vencimiento</th><th>Stripe</th><th style="text-align:center;">Boosts 4h</th><th style="text-align:center;">Boosts 24h</th><th>Registro</th><th>Acciones</th></tr></thead>
       <tbody>${lista.map(c => {
         const plan = c.plan_suscripcion || 'free';
         const vi = plan !== 'free' ? vencInfo(c.plan_hasta) : { texto: '—', clase: '' };
@@ -64,6 +66,12 @@ function renderComercios() {
           <td><span class="badge ${plan}">${plan.toUpperCase()}</span></td>
           <td><span class="${vi.clase}">${vi.texto}</span></td>
           <td>${stripeTag}</td>
+          <td style="text-align:center;">${(c.boosts_4h || 0) > 0
+            ? `<span style="background:var(--orange-light);color:var(--orange);padding:2px 8px;border-radius:12px;font-size:0.78rem;font-weight:700;">${c.boosts_4h}</span>`
+            : `<span style="color:var(--text-3);font-size:0.78rem;">—</span>`}</td>
+          <td style="text-align:center;">${(c.boosts_24h || 0) > 0
+            ? `<span style="background:var(--blue-light);color:var(--blue);padding:2px 8px;border-radius:12px;font-size:0.78rem;font-weight:700;">${c.boosts_24h}</span>`
+            : `<span style="color:var(--text-3);font-size:0.78rem;">—</span>`}</td>
           <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(c.creado_en)}</td>
           <td><button class="btn-sm" onclick="abrirModalComercio('${c.id}')">Gestionar</button></td>
         </tr>`;
