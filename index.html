@@ -268,7 +268,7 @@
       <button class="modal-close" onclick="cerrarModalComercio()">✕</button>
     </div>
     <div class="modal-body">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:16px;font-size:0.83rem;background:var(--bg);padding:12px 14px;border-radius:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:12px;font-size:0.83rem;background:var(--bg);padding:12px 14px;border-radius:10px;">
         <div><span style="color:var(--text-2)">CIF: </span><span id="mc-cif" style="font-weight:500">—</span></div>
         <div><span style="color:var(--text-2)">Teléfono: </span><span id="mc-tel" style="font-weight:500">—</span></div>
         <div><span style="color:var(--text-2)">Email: </span><span id="mc-email" style="font-weight:500">—</span></div>
@@ -278,22 +278,9 @@
         <div><span style="color:var(--text-2)">Plan actual: </span><span id="mc-plan" style="font-weight:500">—</span></div>
         <div style="grid-column:span 2"><span style="color:var(--text-2)">Vence: </span><span id="mc-vence" style="font-weight:500">—</span></div>
       </div>
-      <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Cambiar plan</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <button class="btn-secondary" style="width:100%;text-align:left;padding:11px 16px;display:flex;align-items:center;gap:10px;" onclick="cambiarPlanComercio('free')">
-          <span style="width:10px;height:10px;border-radius:50%;background:var(--text-3);flex-shrink:0;"></span>Cambiar a <strong>Free</strong>
-        </button>
-        <button class="btn-secondary" style="width:100%;text-align:left;padding:11px 16px;display:flex;align-items:center;gap:10px;" onclick="cambiarPlanComercio('pro')">
-          <span style="width:10px;height:10px;border-radius:50%;background:var(--blue);flex-shrink:0;"></span>Activar <strong>Escaparate Pro</strong> (+30 días)
-        </button>
-        <button class="btn-secondary" style="width:100%;text-align:left;padding:11px 16px;display:flex;align-items:center;gap:10px;" onclick="cambiarPlanComercio('multi')">
-          <span style="width:10px;height:10px;border-radius:50%;background:var(--orange);flex-shrink:0;"></span>Activar <strong>Multi-Barrio</strong> (+30 días)
-        </button>
-        <button class="btn-secondary" style="width:100%;text-align:left;padding:11px 16px;display:flex;align-items:center;gap:10px;border-color:var(--orange);" onclick="activarPilotoComercio()">
-          <span style="font-size:1rem;line-height:1;">🚀</span>
-          <span style="color:var(--orange);font-weight:500;">Piloto — hasta <strong>31 Dic 2026</strong></span>
-        </button>
-      </div>
+      <div id="mc-stats" style="margin-bottom:12px;"></div>
+      <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Gestión del plan</div>
+      <div id="mc-btns-plan"><div class="spinner"></div></div>
     </div>
     <div class="modal-footer">
       <button class="btn-sm danger" onclick="eliminarComercioModal()">Eliminar comercio</button>
