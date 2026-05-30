@@ -7,6 +7,7 @@ async function loadFinanzas() {
     const multi = coms.filter(c => c.plan_suscripcion === 'multi').length;
     const mrr   = (pro * 19.90 + multi * 15.98).toFixed(2);
     const arr   = (mrr * 12).toFixed(2);
+
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
         <div style="padding:20px;background:var(--blue-light);border-radius:12px;text-align:center">
@@ -25,13 +26,11 @@ async function loadFinanzas() {
           <div style="font-size:0.72rem;color:var(--text-2);margin-top:4px">${pro} Pro · ${multi} Multi</div>
         </div>
       </div>
-      <div style="padding:16px;background:var(--bg);border-radius:10px;font-size:0.83rem;color:var(--text-2)">
-        💡 Los ingresos reales se gestionarán desde Stripe cuando esté integrado. Estos valores son estimados a partir de los planes activos en Firestore.
-      </div>`;
-      <div style="margin-top:28px;">
-        <div style="font-size:0.95rem;font-weight:600;color:var(--text-1);margin-bottom:14px;">Facturas emitidas</div>
-        <div id="tabla-facturas-fin"><div class="spinner"></div></div>
-      </div>`;
+      <div style="padding:16px;background:var(--bg);border-radius:10px;font-size:0.83rem;color:var(--text-2);margin-bottom:28px;">
+        💡 Los ingresos reales se gestionan desde Stripe. Estos valores son estimados a partir de los planes activos en Firestore.
+      </div>
+      <div style="font-size:0.95rem;font-weight:600;color:var(--text-1);margin-bottom:14px;">Facturas emitidas</div>
+      <div id="tabla-facturas-fin"><div class="spinner"></div></div>`;
 
     // Cargar facturas
     const facSnap = await db.collection('facturas')
@@ -46,10 +45,11 @@ async function loadFinanzas() {
       const rows = facSnap.docs.map(d => {
         const f = d.data();
         const fecha = f.fecha ? formatDate(f.fecha) : '—';
-        const importe = f.importe_total != null ? Number(f.importe_total).toFixed(2).replace('.', ',') + ' €' : '—';
+        const importe = f.importe_total != null
+          ? Number(f.importe_total).toFixed(2).replace('.', ',') + ' €'
+          : '—';
         const pdf = f.url_pdf
-          ? `<a href="${f.url_pdf}" target="_blank" style="color:var(--blue);font-size:0.82rem;display:inline-flex;align-items:center;gap:4px;">
-               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>PDF</a>`
+          ? `<a href="${f.url_pdf}" target="_blank" style="color:var(--blue);font-size:0.82rem;display:inline-flex;align-items:center;gap:4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>PDF</a>`
           : '—';
         return `<tr>
           <td style="font-weight:500;color:var(--blue)">${f.numero || '—'}</td>
@@ -73,17 +73,17 @@ async function loadFinanzas() {
               <th style="text-align:left;padding:8px 10px;">PDF</th>
             </tr>
           </thead>
-          <tbody>
-            ${rows}
-          </tbody>
+          <tbody>${rows}</tbody>
         </table>`;
 
-      // Estilos zebra inline
       tfEl.querySelectorAll('tbody tr').forEach((tr, i) => {
         tr.style.borderBottom = '1px solid var(--border)';
         if (i % 2 === 0) tr.style.background = 'var(--bg)';
       });
     }
 
-  } catch (e) { el.innerHTML = '<div class="empty">Error cargando finanzas</div>'; }
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Error cargando finanzas</div>';
+    console.error('loadFinanzas error:', e);
+  }
 }
