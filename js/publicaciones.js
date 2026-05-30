@@ -122,11 +122,17 @@ function setFiltroTemporal(f) {
 }
 
 async function eliminarPub(id) {
-  if (!confirm('¿Eliminar esta publicación?')) return;
+  if (!confirm('¿Eliminar esta publicación?\n\nSe eliminará la publicación, sus estadísticas y la foto. Esta acción no se puede deshacer.')) return;
   try {
-    await db.collection('Publicaciones').doc(id).delete();
+    const fn = firebase.functions();
+    fn.region = 'europe-west1';
+    const eliminar = firebase.app().functions('europe-west1').httpsCallable('eliminarPublicacionCompleta');
+    await eliminar({ publicacionId: id });
     todasPubs = todasPubs.filter(p => p.id !== id);
     renderPubs();
-    toast('Publicación eliminada', 'success');
-  } catch (e) { toast('Error al eliminar', 'error'); }
+    toast('Publicación eliminada completamente', 'success');
+  } catch (e) {
+    console.error('Error eliminando publicación:', e);
+    toast('Error al eliminar: ' + (e.message || e), 'error');
+  }
 }

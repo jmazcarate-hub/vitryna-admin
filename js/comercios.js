@@ -311,33 +311,16 @@ async function generarFacturaAdmin(comercioId, comercio, concepto, importeTotal)
 async function eliminarComercioModal() {
   if (!comercioModalId) return;
   const c = todosComercios.find(x => x.id === comercioModalId);
-  if (!confirm(`¿Eliminar el comercio "${c?.nombre_comercio}"?\n\nSe eliminarán el comercio, todas sus publicaciones y su cuenta. Esta acción no se puede deshacer.`)) return;
+  if (!confirm(`¿Eliminar el comercio "${c?.nombre_comercio}"?\n\nSe eliminarán:\n• Todas sus publicaciones, estadísticas y fotos\n• Su fachada\n• Sus solicitudes\n• Su cuenta de usuario y Auth\n• Se eliminará de la lista de amigos de todos los vecinos\n\nLas facturas se conservan. Esta acción no se puede deshacer.`)) return;
   try {
-    // 1. Borrar publicaciones
-    const pubsSnap = await db.collection('Publicaciones')
-      .where('comercio_id', '==', comercioModalId).get();
-    const batch = db.batch();
-    pubsSnap.docs.forEach(d => batch.delete(d.ref));
-
-    // 2. Borrar solicitudes boost
-    const boostsSnap = await db.collection('solicitudes_boost')
-      .where('comercio_id', '==', comercioModalId).get();
-    boostsSnap.docs.forEach(d => batch.delete(d.ref));
-
-    // 3. Borrar solicitudes plan
-    const planesSnap = await db.collection('solicitudes_plan')
-      .where('comercio_id', '==', comercioModalId).get();
-    planesSnap.docs.forEach(d => batch.delete(d.ref));
-
-    // 4. Borrar comercio y usuario
-    batch.delete(db.collection('comercios').doc(comercioModalId));
-    batch.delete(db.collection('usuarios').doc(comercioModalId));
-
-    await batch.commit();
-
+    const eliminar = firebase.app().functions('europe-west1').httpsCallable('eliminarComercioCompleto');
+    await eliminar({ comercioId: comercioModalId });
     todosComercios = todosComercios.filter(x => x.id !== comercioModalId);
     cerrarModalComercio();
     renderComercios();
-    toast('Comercio eliminado', 'success');
-  } catch (e) { toast('Error al eliminar', 'error'); }
+    toast('Comercio eliminado completamente', 'success');
+  } catch (e) {
+    console.error('Error eliminando comercio:', e);
+    toast('Error al eliminar: ' + (e.message || e), 'error');
+  }
 }
