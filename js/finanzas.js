@@ -28,5 +28,62 @@ async function loadFinanzas() {
       <div style="padding:16px;background:var(--bg);border-radius:10px;font-size:0.83rem;color:var(--text-2)">
         💡 Los ingresos reales se gestionarán desde Stripe cuando esté integrado. Estos valores son estimados a partir de los planes activos en Firestore.
       </div>`;
+      <div style="margin-top:28px;">
+        <div style="font-size:0.95rem;font-weight:600;color:var(--text-1);margin-bottom:14px;">Facturas emitidas</div>
+        <div id="tabla-facturas-fin"><div class="spinner"></div></div>
+      </div>`;
+
+    // Cargar facturas
+    const facSnap = await db.collection('facturas')
+      .orderBy('fecha', 'desc')
+      .limit(100)
+      .get();
+
+    const tfEl = document.getElementById('tabla-facturas-fin');
+    if (facSnap.empty) {
+      tfEl.innerHTML = '<div class="empty">No hay facturas todavía</div>';
+    } else {
+      const rows = facSnap.docs.map(d => {
+        const f = d.data();
+        const fecha = f.fecha ? formatDate(f.fecha) : '—';
+        const importe = f.importe_total != null ? Number(f.importe_total).toFixed(2).replace('.', ',') + ' €' : '—';
+        const pdf = f.url_pdf
+          ? `<a href="${f.url_pdf}" target="_blank" style="color:var(--blue);font-size:0.82rem;display:inline-flex;align-items:center;gap:4px;">
+               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>PDF</a>`
+          : '—';
+        return `<tr>
+          <td style="font-weight:500;color:var(--blue)">${f.numero || '—'}</td>
+          <td>${fecha}</td>
+          <td>${f.nombre_comercio || '—'}</td>
+          <td style="color:var(--text-2);font-size:0.82rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.concepto || '—'}</td>
+          <td style="font-weight:600">${importe}</td>
+          <td>${pdf}</td>
+        </tr>`;
+      }).join('');
+
+      tfEl.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);color:var(--text-2);font-size:0.78rem;font-weight:500;">
+              <th style="text-align:left;padding:8px 10px;">Nº Factura</th>
+              <th style="text-align:left;padding:8px 10px;">Fecha</th>
+              <th style="text-align:left;padding:8px 10px;">Comercio</th>
+              <th style="text-align:left;padding:8px 10px;">Concepto</th>
+              <th style="text-align:left;padding:8px 10px;">Importe</th>
+              <th style="text-align:left;padding:8px 10px;">PDF</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>`;
+
+      // Estilos zebra inline
+      tfEl.querySelectorAll('tbody tr').forEach((tr, i) => {
+        tr.style.borderBottom = '1px solid var(--border)';
+        if (i % 2 === 0) tr.style.background = 'var(--bg)';
+      });
+    }
+
   } catch (e) { el.innerHTML = '<div class="empty">Error cargando finanzas</div>'; }
 }
