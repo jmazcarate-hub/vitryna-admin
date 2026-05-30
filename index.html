@@ -9,6 +9,17 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <style>
+    @media print {
+      #sidebar, .topbar, #btn-analizar, #btn-limpiar, #btn-imprimir,
+      .table-header button, #mant-resultado { display: none !important; }
+      #main { margin-left: 0 !important; }
+      #section-mantenimiento { display: block !important; }
+      .section:not(#section-mantenimiento) { display: none !important; }
+      body { background: white; }
+      .table-card { box-shadow: none; border: 1px solid #ddd; }
+    }
+  </style>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
@@ -450,40 +461,111 @@ async function analizarHuerfanos() {
 }
 
 function renderInformeHuerfanos(d) {
-  const seccion = (titulo, icono, items, columnas, renderFila, nota) => {
-    const color = items.length === 0 ? 'var(--green)' : 'var(--red)';
-    const badge = `<span style="background:${color};color:white;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">${items.length}</span>`;
-    let html = `<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
-      <div style="padding:12px 16px;background:var(--bg);display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;">
-        <span>${icono}</span><span>${titulo}</span>${badge}
-        ${nota ? `<span style="font-size:0.75rem;font-weight:400;color:var(--text-2);margin-left:4px;">${nota}</span>` : ''}
+  const ahora = new Date().toLocaleString('es-ES', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  });
+
+  const totalLimpiables = d.pubsHuerfanas.length + d.usuariosHuerfanos.length +
+    d.amigosRotos.length + d.fotosHuerfanas.length;
+  const totalInfo = d.facturasHuerfanas.length;
+
+  // Cabecera del informe
+  let html = `
+    <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;">
+      <div style="background:var(--sidebar-bg);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="color:white;font-size:1rem;font-weight:700;">Informe de datos huérfanos</div>
+          <div style="color:rgba(255,255,255,0.5);font-size:0.75rem;margin-top:2px;">Generado el ${ahora}</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div style="text-align:center;">
+            <div style="font-size:1.4rem;font-weight:700;color:${totalLimpiables > 0 ? 'var(--red)' : 'var(--green)'};">${totalLimpiables}</div>
+            <div style="font-size:0.68rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em;">Eliminables</div>
+          </div>
+          <div style="width:1px;height:32px;background:rgba(255,255,255,0.1);"></div>
+          <div style="text-align:center;">
+            <div style="font-size:1.4rem;font-weight:700;color:var(--orange);">${totalInfo}</div>
+            <div style="font-size:0.68rem;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.05em;">Solo info</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  // Función para renderizar cada sección
+  const seccion = (titulo, icono, colorBadge, items, columnas, renderFila, nota) => {
+    const count = items.length;
+    const esOk = count === 0;
+    const badgeColor = esOk ? 'var(--green)' : colorBadge;
+
+    let s = `<div style="margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);">`;
+
+    // Cabecera de sección
+    s += `<div style="padding:13px 18px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+      <span style="font-size:1.1rem;">${icono}</span>
+      <span style="font-size:0.9rem;font-weight:600;flex:1;">${titulo}</span>
+      <span style="background:${badgeColor};color:white;padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;min-width:28px;text-align:center;">${count}</span>
+      ${nota ? `<span style="font-size:0.72rem;color:var(--text-3);padding:2px 8px;border:1px solid var(--border);border-radius:20px;">${nota}</span>` : ''}
+    </div>`;
+
+    if (esOk) {
+      s += `<div style="padding:14px 18px;font-size:0.83rem;color:var(--green);display:flex;align-items:center;gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Sin elementos huérfanos en esta categoría
       </div>`;
-    if (items.length === 0) {
-      html += `<div style="padding:12px 16px;font-size:0.82rem;color:var(--green);">✓ Sin huérfanos</div>`;
     } else {
-      html += `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
-        <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-2);font-size:0.75rem;">
-          ${columnas.map(c => `<th style="text-align:left;padding:7px 12px;">${c}</th>`).join('')}
+      s += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:var(--bg);">
+          ${columnas.map(c => `<th style="padding:9px 16px;text-align:left;font-size:0.72rem;font-weight:600;color:var(--text-2);letter-spacing:0.04em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap;">${c}</th>`).join('')}
         </tr></thead>
-        <tbody>${items.map((item, i) => `<tr style="border-bottom:1px solid var(--border);${i%2===0?'background:var(--bg)':''}">${renderFila(item)}</tr>`).join('')}</tbody>
-      </table>`;
+        <tbody>${items.map((item, i) => `<tr style="${i % 2 === 0 ? 'background:var(--bg);' : 'background:var(--surface);'}">${renderFila(item)}</tr>`).join('')}</tbody>
+      </table></div>`;
     }
-    return html + '</div>';
+    return s + '</div>';
   };
-  const td = v => `<td style="padding:7px 12px;">${v}</td>`;
-  return `
-    <div style="font-size:0.85rem;font-weight:600;margin-bottom:12px;">Informe — ${new Date().toLocaleString('es-ES')}</div>
-    ${seccion('Publicaciones huérfanas', '📄', d.pubsHuerfanas, ['ID', 'Título', 'Comercio ID', 'Fecha'],
-      i => td(i.id.substring(0,8)+'…') + td(i.titulo) + td(`<code>${i.comercio_id}</code>`) + td(i.fecha))}
-    ${seccion('Usuarios huérfanos (rol comercio)', '👤', d.usuariosHuerfanos, ['ID', 'Email'],
-      i => td(i.id.substring(0,8)+'…') + td(i.email))}
-    ${seccion('Referencias rotas en favoritos', '❤️', d.amigosRotos, ['Usuario', 'Email', 'IDs rotos'],
-      i => td(i.usuarioId.substring(0,8)+'…') + td(i.email) + td(i.idsRotos.map(x=>`<code>${x.substring(0,8)}…</code>`).join(' ')))}
-    ${seccion('Fotos huérfanas en Storage', '🖼️', d.fotosHuerfanas, ['Tipo', 'Ruta'],
-      i => td(i.tipo) + td(`<code style="font-size:0.75rem;">${i.ruta}</code>`))}
-    ${seccion('Facturas de comercios eliminados', '📋', d.facturasHuerfanas, ['Nº Factura', 'Comercio', 'Importe', 'Fecha'],
-      i => td(i.numero) + td(i.nombre_comercio) + td(i.importe.toFixed(2)+' €') + td(i.fecha),
-      '(solo informativo — no se borran)')}`;
+
+  const td = (v, mono) => `<td style="padding:10px 16px;font-size:0.83rem;border-bottom:1px solid var(--border);${mono ? "font-family:'DM Mono',monospace;font-size:0.78rem;" : ''}">${v}</td>`;
+  const badge = (txt, color) => `<span style="background:${color}22;color:${color};padding:2px 8px;border-radius:20px;font-size:0.72rem;font-weight:600;">${txt}</span>`;
+
+  html += seccion('Publicaciones huérfanas', '📄', 'var(--red)',
+    d.pubsHuerfanas,
+    ['ID Publicación', 'Título', 'Comercio ID (no existe)', 'Fecha publicación'],
+    i => td(`<code style="font-size:0.75rem;color:var(--text-2);">${i.id}</code>`, false) +
+         td(`<strong>${i.titulo}</strong>`, false) +
+         td(`<code style="font-size:0.75rem;color:var(--red);">${i.comercio_id}</code>`, false) +
+         td(i.fecha, false));
+
+  html += seccion('Usuarios huérfanos (rol comercio sin datos)', '👤', 'var(--red)',
+    d.usuariosHuerfanos,
+    ['ID Usuario', 'Email'],
+    i => td(`<code style="font-size:0.75rem;color:var(--text-2);">${i.id}</code>`, false) +
+         td(i.email, false));
+
+  html += seccion('Referencias rotas en favoritos', '❤️', 'var(--orange)',
+    d.amigosRotos,
+    ['ID Usuario', 'Email', 'Nº referencias rotas', 'IDs de comercios inexistentes'],
+    i => td(`<code style="font-size:0.75rem;color:var(--text-2);">${i.usuarioId}</code>`, false) +
+         td(i.email, false) +
+         td(badge(i.idsRotos.length + ' rotas', 'var(--orange)'), false) +
+         td(i.idsRotos.map(x => `<code style="font-size:0.72rem;background:var(--red-light);color:var(--red);padding:1px 5px;border-radius:4px;margin-right:3px;">${x.substring(0,12)}…</code>`).join(''), false));
+
+  html += seccion('Fotos huérfanas en Storage', '🖼️', 'var(--orange)',
+    d.fotosHuerfanas,
+    ['Tipo', 'Ruta en Storage'],
+    i => td(badge(i.tipo, i.tipo === 'fachada' ? 'var(--blue)' : 'var(--orange)'), false) +
+         td(`<code style="font-size:0.75rem;color:var(--text-2);">${i.ruta}</code>`, false));
+
+  html += seccion('Facturas de comercios eliminados', '📋', 'var(--orange)',
+    d.facturasHuerfanas,
+    ['Nº Factura', 'Comercio (eliminado)', 'ID Comercio', 'Importe', 'Fecha'],
+    i => td(`<strong style="color:var(--blue);">${i.numero}</strong>`, false) +
+         td(i.nombre_comercio, false) +
+         td(`<code style="font-size:0.72rem;color:var(--text-3);">${i.comercio_id}</code>`, false) +
+         td(`<strong>${Number(i.importe).toFixed(2).replace('.',',')} €</strong>`, false) +
+         td(i.fecha, false),
+    'solo informativo');
+
+  return html;
 }
 
 async function limpiarHuerfanos() {
