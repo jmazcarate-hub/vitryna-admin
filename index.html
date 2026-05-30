@@ -262,11 +262,13 @@
         <div class="table-header">
           <div class="card-title">Mantenimiento</div>
         </div>
-        <div style="padding:20px;">
-          <div style="margin-bottom:28px;padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+        <div style="padding:20px;display:flex;flex-direction:column;gap:24px;">
+
+          <!-- Borrar publicaciones antiguas -->
+          <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
             <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">Borrar publicaciones antiguas</div>
             <div style="font-size:0.82rem;color:var(--text-2);margin-bottom:16px;">
-              Elimina permanentemente las publicaciones con más de N días desde su publicación. Esta acción no se puede deshacer.
+              Elimina permanentemente las publicaciones, sus estadísticas y fotos con más de N días desde su publicación.
             </div>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
               <div>
@@ -278,11 +280,27 @@
                 <button class="btn-secondary" onclick="contarPublicacionesAntiguas()">Ver cuántas hay</button>
               </div>
               <div style="padding-top:18px;">
-                <button class="btn-sm danger" onclick="borrarPublicacionesAntiguas()">Eliminar</button>
+                <button class="btn-sm danger" onclick="borrarPublicacionesAntiguasCompleto()">Eliminar</button>
               </div>
             </div>
             <div id="mant-resultado" style="margin-top:12px;font-size:0.83rem;color:var(--text-2);"></div>
           </div>
+
+          <!-- Detector de huérfanos -->
+          <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">Detector de datos huérfanos</div>
+            <div style="font-size:0.82rem;color:var(--text-2);margin-bottom:16px;">
+              Analiza la base de datos en busca de datos inconsistentes: publicaciones sin comercio, usuarios sin cuenta,
+              referencias rotas en favoritos y fotos en Storage sin documento. Las facturas nunca se borran.
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+              <button class="btn-secondary" id="btn-analizar" onclick="analizarHuerfanos()">🔍 Analizar huérfanos</button>
+              <button class="btn-sm danger" id="btn-limpiar" style="display:none" onclick="limpiarHuerfanos()">🗑️ Limpiar huérfanos</button>
+              <button class="btn-secondary" id="btn-imprimir" style="display:none" onclick="window.print()">🖨️ Imprimir informe</button>
+            </div>
+            <div id="mant-huerfanos-resultado"></div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -366,7 +384,8 @@
 <div id="toast"></div>
 
 <script>
-// Mantenimiento
+// ── MANTENIMIENTO ─────────────────────────────────────────────────────────────
+
 async function contarPublicacionesAntiguas() {
   const dias = parseInt(document.getElementById('mant-dias').value) || 30;
   const limite = new Date(Date.now() - dias * 86400000);
@@ -374,31 +393,129 @@ async function contarPublicacionesAntiguas() {
   el.textContent = 'Consultando...';
   try {
     const snap = await db.collection('Publicaciones')
-      .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(limite))
-      .get();
-    el.innerHTML = `Hay <strong>${snap.size}</strong> publicación${snap.size !== 1 ? 'es' : ''} con más de ${dias} días de antigüedad.`;
-  } catch(e) { el.textContent = 'Error al consultar'; }
+      .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(limite)).get();
+    el.innerHTML = `Hay <strong>${snap.size}</strong> publicación${snap.size !== 1 ? 'es' : ''} con más de ${dias} días (incluye stats y fotos).`;
+  } catch(e) { el.textContent = 'Error al consultar: ' + e.message; }
 }
-async function borrarPublicacionesAntiguas() {
+
+async function borrarPublicacionesAntiguasCompleto() {
   const dias = parseInt(document.getElementById('mant-dias').value) || 30;
   const el = document.getElementById('mant-resultado');
   const limite = new Date(Date.now() - dias * 86400000);
+  const snap = await db.collection('Publicaciones')
+    .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(limite)).get();
+  if (snap.empty) { el.textContent = 'No hay publicaciones con esa antigüedad.'; return; }
+  if (!confirm(`¿Eliminar ${snap.size} publicación${snap.size !== 1 ? 'es' : ''} con más de ${dias} días?\n\nSe eliminarán documentos, estadísticas y fotos. Esta acción no se puede deshacer.`)) return;
+  el.innerHTML = '<span style="color:var(--text-2)">Eliminando... puede tardar unos segundos.</span>';
   try {
-    const snap = await db.collection('Publicaciones')
-      .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(limite))
-      .get();
-    if (snap.empty) { el.textContent = 'No hay publicaciones con esa antigüedad.'; return; }
-    if (!confirm(`¿Eliminar ${snap.size} publicación${snap.size !== 1 ? 'es' : ''} con más de ${dias} días?
+    const fn = firebase.app().functions('europe-west1').httpsCallable('borrarPublicacionesAntiguas');
+    const result = await fn({ dias });
+    const n = result.data.eliminadas;
+    el.innerHTML = `<span style="color:var(--green)">✓ ${n} publicación${n !== 1 ? 'es' : ''} eliminada${n !== 1 ? 's' : ''} completamente.</span>`;
+    if (typeof toast === 'function') toast(`${n} publicaciones eliminadas`, 'success');
+  } catch(e) { el.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`; }
+}
 
-Esta acción no se puede deshacer.`)) return;
-    const batch = db.batch();
-    snap.docs.forEach(d => batch.delete(d.ref));
-    await batch.commit();
-    el.innerHTML = `<span style="color:var(--green)">✓ ${snap.size} publicación${snap.size !== 1 ? 'es' : ''} eliminada${snap.size !== 1 ? 's' : ''} correctamente.</span>`;
-    if (typeof toast === 'function') toast(`${snap.size} publicaciones eliminadas`, 'success');
-  } catch(e) { el.textContent = 'Error al eliminar: ' + e.message; }
+// ── DETECTOR DE HUÉRFANOS ─────────────────────────────────────────────────────
+let _informeHuerfanos = null;
+
+async function analizarHuerfanos() {
+  const el = document.getElementById('mant-huerfanos-resultado');
+  const btnLimpiar = document.getElementById('btn-limpiar');
+  const btnImprimir = document.getElementById('btn-imprimir');
+  const btnAnalizar = document.getElementById('btn-analizar');
+  btnAnalizar.disabled = true;
+  btnAnalizar.textContent = 'Analizando...';
+  btnLimpiar.style.display = 'none';
+  btnImprimir.style.display = 'none';
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('analizarHuerfanos');
+    const result = await fn({});
+    _informeHuerfanos = result.data;
+    el.innerHTML = renderInformeHuerfanos(_informeHuerfanos);
+    const hayLimpiables = _informeHuerfanos.pubsHuerfanas.length > 0 ||
+      _informeHuerfanos.usuariosHuerfanos.length > 0 ||
+      _informeHuerfanos.amigosRotos.length > 0 ||
+      _informeHuerfanos.fotosHuerfanas.length > 0;
+    if (hayLimpiables) btnLimpiar.style.display = '';
+    btnImprimir.style.display = '';
+  } catch(e) {
+    el.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+  } finally {
+    btnAnalizar.disabled = false;
+    btnAnalizar.textContent = '🔍 Analizar huérfanos';
+  }
+}
+
+function renderInformeHuerfanos(d) {
+  const seccion = (titulo, icono, items, columnas, renderFila, nota) => {
+    const color = items.length === 0 ? 'var(--green)' : 'var(--red)';
+    const badge = `<span style="background:${color};color:white;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;">${items.length}</span>`;
+    let html = `<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+      <div style="padding:12px 16px;background:var(--bg);display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.9rem;">
+        <span>${icono}</span><span>${titulo}</span>${badge}
+        ${nota ? `<span style="font-size:0.75rem;font-weight:400;color:var(--text-2);margin-left:4px;">${nota}</span>` : ''}
+      </div>`;
+    if (items.length === 0) {
+      html += `<div style="padding:12px 16px;font-size:0.82rem;color:var(--green);">✓ Sin huérfanos</div>`;
+    } else {
+      html += `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+        <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-2);font-size:0.75rem;">
+          ${columnas.map(c => `<th style="text-align:left;padding:7px 12px;">${c}</th>`).join('')}
+        </tr></thead>
+        <tbody>${items.map((item, i) => `<tr style="border-bottom:1px solid var(--border);${i%2===0?'background:var(--bg)':''}">${renderFila(item)}</tr>`).join('')}</tbody>
+      </table>`;
+    }
+    return html + '</div>';
+  };
+  const td = v => `<td style="padding:7px 12px;">${v}</td>`;
+  return `
+    <div style="font-size:0.85rem;font-weight:600;margin-bottom:12px;">Informe — ${new Date().toLocaleString('es-ES')}</div>
+    ${seccion('Publicaciones huérfanas', '📄', d.pubsHuerfanas, ['ID', 'Título', 'Comercio ID', 'Fecha'],
+      i => td(i.id.substring(0,8)+'…') + td(i.titulo) + td(`<code>${i.comercio_id}</code>`) + td(i.fecha))}
+    ${seccion('Usuarios huérfanos (rol comercio)', '👤', d.usuariosHuerfanos, ['ID', 'Email'],
+      i => td(i.id.substring(0,8)+'…') + td(i.email))}
+    ${seccion('Referencias rotas en favoritos', '❤️', d.amigosRotos, ['Usuario', 'Email', 'IDs rotos'],
+      i => td(i.usuarioId.substring(0,8)+'…') + td(i.email) + td(i.idsRotos.map(x=>`<code>${x.substring(0,8)}…</code>`).join(' ')))}
+    ${seccion('Fotos huérfanas en Storage', '🖼️', d.fotosHuerfanas, ['Tipo', 'Ruta'],
+      i => td(i.tipo) + td(`<code style="font-size:0.75rem;">${i.ruta}</code>`))}
+    ${seccion('Facturas de comercios eliminados', '📋', d.facturasHuerfanas, ['Nº Factura', 'Comercio', 'Importe', 'Fecha'],
+      i => td(i.numero) + td(i.nombre_comercio) + td(i.importe.toFixed(2)+' €') + td(i.fecha),
+      '(solo informativo — no se borran)')}`;
+}
+
+async function limpiarHuerfanos() {
+  if (!_informeHuerfanos) return;
+  const total = _informeHuerfanos.pubsHuerfanas.length + _informeHuerfanos.usuariosHuerfanos.length +
+    _informeHuerfanos.amigosRotos.length + _informeHuerfanos.fotosHuerfanas.length;
+  if (!confirm(`¿Limpiar ${total} elemento${total!==1?'s':''} huérfano${total!==1?'s':''}?\n\nLas facturas NO se borrarán. Esta acción no se puede deshacer.`)) return;
+  const el = document.getElementById('mant-huerfanos-resultado');
+  const btnLimpiar = document.getElementById('btn-limpiar');
+  btnLimpiar.disabled = true;
+  btnLimpiar.textContent = 'Limpiando...';
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('limpiarHuerfanos');
+    const result = await fn({
+      pubsHuerfanas: _informeHuerfanos.pubsHuerfanas,
+      usuariosHuerfanos: _informeHuerfanos.usuariosHuerfanos,
+      amigosRotos: _informeHuerfanos.amigosRotos,
+      fotosHuerfanas: _informeHuerfanos.fotosHuerfanas,
+    });
+    const r = result.data.resumen;
+    el.innerHTML = `<div style="padding:16px;background:var(--green-light);border-radius:10px;color:var(--green);font-size:0.85rem;">
+      ✓ Limpieza completada:<br>· ${r.pubs} publicaciones · ${r.usuarios} usuarios · ${r.amigos} referencias · ${r.fotos} fotos</div>`;
+    _informeHuerfanos = null;
+    btnLimpiar.style.display = 'none';
+    if (typeof toast === 'function') toast('Huérfanos eliminados correctamente', 'success');
+  } catch(e) {
+    el.innerHTML += `<div style="color:var(--red);margin-top:8px;">Error: ${e.message}</div>`;
+    btnLimpiar.disabled = false;
+    btnLimpiar.textContent = '🗑️ Limpiar huérfanos';
+  }
 }
 </script>
+
 <script src="js/auth.js"></script>
 </body>
 </html>
