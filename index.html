@@ -73,6 +73,10 @@
       Estadísticas
     </a>
     <div class="nav-section-title">Sistema</div>
+    <a class="nav-item" data-section="mantenimiento">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      Mantenimiento
+    </a>
     <a class="nav-item" data-section="config">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       Configuración
@@ -252,6 +256,37 @@
 
     </div>
 
+    <!-- MANTENIMIENTO -->
+    <div class="section" id="section-mantenimiento">
+      <div class="table-card">
+        <div class="table-header">
+          <div class="card-title">Mantenimiento</div>
+        </div>
+        <div style="padding:20px;">
+          <div style="margin-bottom:28px;padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">Borrar publicaciones antiguas</div>
+            <div style="font-size:0.82rem;color:var(--text-2);margin-bottom:16px;">
+              Elimina permanentemente las publicaciones con más de N días desde su publicación. Esta acción no se puede deshacer.
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <div>
+                <label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:3px;">Días de antigüedad</label>
+                <input type="number" id="mant-dias" value="30" min="1"
+                  style="width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg);">
+              </div>
+              <div style="padding-top:18px;">
+                <button class="btn-secondary" onclick="contarPublicacionesAntiguas()">Ver cuántas hay</button>
+              </div>
+              <div style="padding-top:18px;">
+                <button class="btn-sm danger" onclick="borrarPublicacionesAntiguas()">Eliminar</button>
+              </div>
+            </div>
+            <div id="mant-resultado" style="margin-top:12px;font-size:0.83rem;color:var(--text-2);"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- CONFIGURACIÓN -->
     <div class="section" id="section-config">
       <div id="config-content"><div class="spinner"></div></div>
@@ -330,6 +365,40 @@
 
 <div id="toast"></div>
 
+<script>
+// Mantenimiento
+async function contarPublicacionesAntiguas() {
+  const dias = parseInt(document.getElementById('mant-dias').value) || 30;
+  const limite = new Date(Date.now() - dias * 86400000);
+  const el = document.getElementById('mant-resultado');
+  el.textContent = 'Consultando...';
+  try {
+    const snap = await db.collection('Publicaciones')
+      .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(limite))
+      .get();
+    el.innerHTML = `Hay <strong>${snap.size}</strong> publicación${snap.size !== 1 ? 'es' : ''} con más de ${dias} días de antigüedad.`;
+  } catch(e) { el.textContent = 'Error al consultar'; }
+}
+async function borrarPublicacionesAntiguas() {
+  const dias = parseInt(document.getElementById('mant-dias').value) || 30;
+  const el = document.getElementById('mant-resultado');
+  const limite = new Date(Date.now() - dias * 86400000);
+  try {
+    const snap = await db.collection('Publicaciones')
+      .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(limite))
+      .get();
+    if (snap.empty) { el.textContent = 'No hay publicaciones con esa antigüedad.'; return; }
+    if (!confirm(`¿Eliminar ${snap.size} publicación${snap.size !== 1 ? 'es' : ''} con más de ${dias} días?
+
+Esta acción no se puede deshacer.`)) return;
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    el.innerHTML = `<span style="color:var(--green)">✓ ${snap.size} publicación${snap.size !== 1 ? 'es' : ''} eliminada${snap.size !== 1 ? 's' : ''} correctamente.</span>`;
+    if (typeof toast === 'function') toast(`${snap.size} publicaciones eliminadas`, 'success');
+  } catch(e) { el.textContent = 'Error al eliminar: ' + e.message; }
+}
+</script>
 <script src="js/auth.js"></script>
 </body>
 </html>

@@ -59,7 +59,7 @@ function renderComercios() {
           ? `<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:${cancelada ? 'var(--red-light)' : 'var(--green-light)'};color:${cancelada ? 'var(--red)' : 'var(--green)'};">${cancelada ? 'Cancelada' : 'Activa'}</span>`
           : '<span style="font-size:0.72rem;color:var(--text-3);">Manual</span>';
         return `<tr>
-          <td><div style="font-weight:500">${c.nombre_comercio || '—'}</div><div style="font-size:0.75rem;color:var(--text-2)">${c.email || c.telefono || ''}</div></td>
+          <td><div style="font-weight:500">${c.nombre_comercio || '—'}</div><div style="font-size:0.75rem;color:var(--text-2)">${c.email || '—'}</div><div style="font-size:0.75rem;color:var(--text-3)">${c.telefono || '—'}</div></td>
           <td style="color:var(--text-2);font-size:0.83rem">${c.categoria || '—'}</td>
           <td><span class="badge ${plan}">${plan.toUpperCase()}</span></td>
           <td><span class="${vi.clase}">${vi.texto}</span></td>

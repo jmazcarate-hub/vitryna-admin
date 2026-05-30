@@ -120,6 +120,7 @@ const seccionMeta = {
   colaboradores: { title: 'Colaboradores',    sub: 'Entidades institucionales del barrio' },
   finanzas:      { title: 'Finanzas',         sub: 'Ingresos y facturación' },
   estadisticas:  { title: 'Estadísticas',     sub: 'Métricas de uso detalladas' },
+  mantenimiento: { title: 'Mantenimiento',    sub: 'Limpieza y gestión de datos' },
   config:        { title: 'Configuración',    sub: 'Parámetros de la aplicación' },
 };
 document.querySelectorAll('.nav-item').forEach(item => {

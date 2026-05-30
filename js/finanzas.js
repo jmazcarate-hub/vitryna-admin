@@ -8,6 +8,12 @@ async function loadFinanzas() {
     const mrr   = (pro * 19.90 + multi * 15.98).toFixed(2);
     const arr   = (mrr * 12).toFixed(2);
 
+    // Leer contador de facturas
+    const facturacionDoc = await db.collection('config').doc('facturacion').get();
+    const facData = facturacionDoc.data() || {};
+    const anioActual = new Date().getFullYear();
+    const contadorActual = facData.anio === anioActual ? (facData.contador || 0) : 0;
+
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
         <div style="padding:20px;background:var(--blue-light);border-radius:12px;text-align:center">
@@ -26,16 +32,41 @@ async function loadFinanzas() {
           <div style="font-size:0.72rem;color:var(--text-2);margin-top:4px">${pro} Pro · ${multi} Multi</div>
         </div>
       </div>
-      <div style="padding:16px;background:var(--bg);border-radius:10px;font-size:0.83rem;color:var(--text-2);margin-bottom:28px;">
+      <div style="padding:16px;background:var(--bg);border-radius:10px;font-size:0.83rem;color:var(--text-2);margin-bottom:24px;">
         💡 Los ingresos reales se gestionan desde Stripe. Estos valores son estimados a partir de los planes activos en Firestore.
       </div>
+
+      <!-- Contador de facturas -->
+      <div style="margin-bottom:28px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+        <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">Contador de facturas</div>
+        <div style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
+          Año en curso: <strong>${anioActual}</strong> · Última factura emitida: <strong>${anioActual}-${String(contadorActual).padStart(4,'0')}</strong>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div>
+            <label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:3px;">Próximo número</label>
+            <input type="number" id="fin-contador" value="${contadorActual}" min="0"
+              style="width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg);">
+          </div>
+          <div style="padding-top:18px;">
+            <button class="btn-secondary" onclick="guardarContadorFacturas(${anioActual})">Guardar contador</button>
+          </div>
+          <div style="padding-top:18px;">
+            <button class="btn-secondary" style="border-color:var(--orange);color:var(--orange);" onclick="resetContadorAnio()">↺ Reset para nuevo año</button>
+          </div>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-3);margin-top:8px;">
+          ⚠️ Modifica solo si necesitas corregir un error o iniciar un nuevo ejercicio fiscal. La próxima factura usará el número siguiente al que establezcas aquí.
+        </div>
+      </div>
+
       <div style="font-size:0.95rem;font-weight:600;color:var(--text-1);margin-bottom:14px;">Facturas emitidas</div>
       <div id="tabla-facturas-fin"><div class="spinner"></div></div>`;
 
     // Cargar facturas
     const facSnap = await db.collection('facturas')
       .orderBy('fecha', 'desc')
-      .limit(100)
+      .limit(200)
       .get();
 
     const tfEl = document.getElementById('tabla-facturas-fin');
@@ -86,4 +117,23 @@ async function loadFinanzas() {
     el.innerHTML = '<div class="empty">Error cargando finanzas</div>';
     console.error('loadFinanzas error:', e);
   }
+}
+
+async function guardarContadorFacturas(anio) {
+  const val = parseInt(document.getElementById('fin-contador').value) || 0;
+  if (!confirm(`¿Establecer el contador de facturas a ${val} para el año ${anio}?\nLa próxima factura será ${anio}-${String(val + 1).padStart(4,'0')}`)) return;
+  try {
+    await db.collection('config').doc('facturacion').set({ anio, contador: val }, { merge: true });
+    toast('Contador actualizado', 'success');
+  } catch (e) { toast('Error al guardar contador', 'error'); }
+}
+
+async function resetContadorAnio() {
+  const anioNuevo = new Date().getFullYear();
+  if (!confirm(`¿Resetear el contador para el año ${anioNuevo}?\nLa próxima factura será ${anioNuevo}-0001`)) return;
+  try {
+    await db.collection('config').doc('facturacion').set({ anio: anioNuevo, contador: 0 });
+    toast(`Contador reseteado para ${anioNuevo}`, 'success');
+    loadFinanzas();
+  } catch (e) { toast('Error al resetear contador', 'error'); }
 }
