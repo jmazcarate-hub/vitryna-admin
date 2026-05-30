@@ -24,6 +24,12 @@ async function loadComercios() {
   }
 }
 
+function badgeBoost(val, color) {
+  const n = val || 0;
+  if (n > 0) return '<span style="background:var(--' + color + '-light);color:var(--' + color + ');padding:2px 8px;border-radius:12px;font-size:0.78rem;font-weight:700;">' + n + '</span>';
+  return '<span style="color:var(--text-3);font-size:0.78rem;">—</span>';
+}
+
 function renderComercios() {
   const q = document.getElementById('search-comercios').value.toLowerCase();
   const ahora = new Date();
@@ -66,12 +72,8 @@ function renderComercios() {
           <td><span class="badge ${plan}">${plan.toUpperCase()}</span></td>
           <td><span class="${vi.clase}">${vi.texto}</span></td>
           <td>${stripeTag}</td>
-          <td style="text-align:center;">${(c.boosts_4h || 0) > 0
-            ? `<span style="background:var(--orange-light);color:var(--orange);padding:2px 8px;border-radius:12px;font-size:0.78rem;font-weight:700;">${c.boosts_4h}</span>`
-            : `<span style="color:var(--text-3);font-size:0.78rem;">—</span>`}</td>
-          <td style="text-align:center;">${(c.boosts_24h || 0) > 0
-            ? `<span style="background:var(--blue-light);color:var(--blue);padding:2px 8px;border-radius:12px;font-size:0.78rem;font-weight:700;">${c.boosts_24h}</span>`
-            : `<span style="color:var(--text-3);font-size:0.78rem;">—</span>`}</td>
+          <td style="text-align:center;">${badgeBoost(c.boosts_4h, 'orange')}</td>
+          <td style="text-align:center;">${badgeBoost(c.boosts_24h, 'blue')}</td>
           <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(c.creado_en)}</td>
           <td><button class="btn-sm" onclick="abrirModalComercio('${c.id}')">Gestionar</button></td>
         </tr>`;
