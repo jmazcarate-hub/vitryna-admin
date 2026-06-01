@@ -18,7 +18,7 @@ async function loadVecinos() {
         <span style="color:var(--green)">● ${conToken} con notificaciones activas</span>
       </div>
       <table>
-        <thead><tr><th>Email</th><th>Amigos</th><th>Notificaciones push</th><th>Registro</th></tr></thead>
+        <thead><tr><th>Email</th><th>Amigos</th><th>Notificaciones push</th><th>Registro</th><th></th></tr></thead>
         <tbody>${vecinos.map(v => `<tr>
           <td>${v.email || '—'}</td>
           <td>${(v.amigos || []).length}</td>
@@ -27,10 +27,24 @@ async function loadVecinos() {
             : '<span class="badge free">Sin token</span>'
           }</td>
           <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(v.creado_en)}</td>
+          <td><button class="btn-sm danger" onclick="eliminarVecino('${v.id}','${v.email || ''}')">Eliminar</button></td>
         </tr>`).join('')}</tbody>
       </table>`;
   } catch (e) {
     console.error('Error vecinos:', e);
     el.innerHTML = '<div class="empty">Error cargando vecinos</div>';
+  }
+}
+
+async function eliminarVecino(uid, email) {
+  if (!confirm(`¿Eliminar el vecino "${email}"?\n\nSe eliminará su cuenta, sus datos y se quitará de la lista de amigos de los comercios que seguía. Esta acción no se puede deshacer.`)) return;
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('eliminarVecinoCompleto');
+    await fn({ vecinoId: uid });
+    toast('Vecino eliminado correctamente', 'success');
+    loadVecinos();
+  } catch (e) {
+    console.error('Error eliminando vecino:', e);
+    toast('Error al eliminar: ' + (e.message || e), 'error');
   }
 }
