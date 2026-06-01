@@ -80,10 +80,46 @@ async function loadConfig() {
         </div>
       </div>
 
-      <div style="display:flex;justify-content:flex-end;margin-top:8px;padding-bottom:40px;">
+      <div style="display:flex;justify-content:flex-end;margin-top:8px;padding-bottom:24px;">
         <button class="btn-primary" style="padding:12px 32px;font-size:0.95rem;" onclick="guardarConfig()">Guardar configuración</button>
+      </div>
+
+      <div class="config-section" style="margin-bottom:40px;">
+        <div class="config-section-title">NIFs Premium — Plan Pionero</div>
+        <div class="config-section-desc">
+          Lista de NIFs con acceso gratuito hasta el 31 de diciembre de 2026 (Volveremos, HORECA, convenios).
+          El CSV debe tener dos columnas: <strong>NIF</strong> y <strong>Nombre del comercio</strong>, con o sin cabecera.
+        </div>
+        <div id="pioneros-lista" style="margin-bottom:16px;"><div class="spinner"></div></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+          <div>
+            <label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:3px;">NIF</label>
+            <input type="text" id="cfg-nif-nuevo" placeholder="Ej: B50123456"
+              style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.88rem;background:var(--surface);width:140px;">
+          </div>
+          <div>
+            <label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:3px;">Nombre del comercio</label>
+            <input type="text" id="cfg-nif-nombre" placeholder="Ej: Panadería López"
+              style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.88rem;background:var(--surface);width:220px;"
+              onkeydown="if(event.key==='Enter') añadirNifPionero()">
+          </div>
+          <button class="btn-secondary" onclick="añadirNifPionero()" style="padding:7px 16px;">+ Añadir</button>
+        </div>
+        <div style="margin-bottom:8px;">
+          <label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:6px;">Importar desde CSV (columnas: NIF, Nombre)</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <input type="file" id="cfg-csv-input" accept=".csv,.txt" style="font-size:0.82rem;color:var(--text-2);">
+            <button class="btn-secondary" onclick="importarNifsCsv()">Importar CSV</button>
+            <button class="btn-secondary" onclick="exportarNifsCsv()" style="color:var(--blue);">⬇ Exportar CSV</button>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-3);margin-top:5px;">
+            Separador: coma o punto y coma. Primera columna: NIF. Segunda columna: nombre del comercio. Se ignoran duplicados.
+          </div>
+        </div>
+        <div id="cfg-pioneros-msg" style="font-size:0.82rem;margin-top:8px;"></div>
       </div>`;
   } catch (e) { el.innerHTML = '<div class="empty">Error cargando configuración</div>'; }
+  cargarNifsPioneros();
 }
 
 async function guardarConfig() {
@@ -118,4 +154,128 @@ async function guardarConfig() {
     ]);
     toast('Configuración guardada', 'success');
   } catch (e) { toast('Error guardando configuración', 'error'); }
+}
+
+// ── NIFs PREMIUM — Plan Pionero ─────────────────────────────────────────────
+// Estructura: { nif: string, nombre: string }[]
+
+let _nifsPioneros = [];
+
+async function cargarNifsPioneros() {
+  const el = document.getElementById('pioneros-lista');
+  if (!el) return;
+  try {
+    const doc = await db.collection('config').doc('pioneros').get();
+    const data = doc.exists ? doc.data() : {};
+    // Soportar formato antiguo (array de strings) y nuevo (array de objetos)
+    const raw = data.nifs_premium || [];
+    _nifsPioneros = raw.map(item =>
+      typeof item === 'string' ? { nif: item, nombre: '' } : item
+    );
+    renderNifsPioneros();
+  } catch(e) { el.innerHTML = '<div class="empty">Error cargando NIFs</div>'; }
+}
+
+function renderNifsPioneros() {
+  const el = document.getElementById('pioneros-lista');
+  if (!el) return;
+  if (_nifsPioneros.length === 0) {
+    el.innerHTML = '<div style="font-size:0.83rem;color:var(--text-3);padding:8px 0;">Sin NIFs registrados todavía.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="font-size:0.78rem;color:var(--text-2);margin-bottom:10px;">${_nifsPioneros.length} NIF${_nifsPioneros.length !== 1 ? 's' : ''} registrado${_nifsPioneros.length !== 1 ? 's' : ''}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+      <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-2);font-size:0.75rem;">
+        <th style="text-align:left;padding:6px 10px;">NIF</th>
+        <th style="text-align:left;padding:6px 10px;">Nombre del comercio</th>
+        <th style="padding:6px 10px;"></th>
+      </tr></thead>
+      <tbody>${_nifsPioneros.map((item, i) => `
+        <tr style="${i % 2 === 0 ? 'background:var(--bg);' : ''}border-bottom:1px solid var(--border);">
+          <td style="padding:7px 10px;font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--blue);">${item.nif}</td>
+          <td style="padding:7px 10px;color:var(--text-1);">${item.nombre || '<span style="color:var(--text-3)">—</span>'}</td>
+          <td style="padding:7px 10px;text-align:right;">
+            <span onclick="eliminarNifPionero('${item.nif}')" style="cursor:pointer;color:var(--red);font-size:0.8rem;font-weight:600;">Eliminar</span>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function guardarNifsPioneros() {
+  // Guardar como array de objetos Y array de solo NIFs para compatibilidad con la app Flutter
+  const nifsArray = _nifsPioneros.map(i => i.nif);
+  await db.collection('config').doc('pioneros').set({
+    nifs_premium: nifsArray,
+    nifs_premium_detalle: _nifsPioneros,
+  }, { merge: true });
+}
+
+async function añadirNifPionero() {
+  const nifInput = document.getElementById('cfg-nif-nuevo');
+  const nombreInput = document.getElementById('cfg-nif-nombre');
+  const nif = nifInput.value.trim().toUpperCase();
+  const nombre = nombreInput.value.trim();
+  if (!nif) { toast('Introduce un NIF', 'error'); return; }
+  if (_nifsPioneros.some(i => i.nif === nif)) { toast('Este NIF ya está en la lista', 'error'); return; }
+  _nifsPioneros.push({ nif, nombre });
+  _nifsPioneros.sort((a, b) => a.nif.localeCompare(b.nif));
+  try {
+    await guardarNifsPioneros();
+    nifInput.value = ''; nombreInput.value = '';
+    renderNifsPioneros();
+    toast('NIF añadido', 'success');
+  } catch(e) { toast('Error al guardar', 'error'); }
+}
+
+async function eliminarNifPionero(nif) {
+  if (!confirm(`¿Eliminar el NIF ${nif} de la lista premium?`)) return;
+  _nifsPioneros = _nifsPioneros.filter(i => i.nif !== nif);
+  try {
+    await guardarNifsPioneros();
+    renderNifsPioneros();
+    toast('NIF eliminado', 'success');
+  } catch(e) { toast('Error al guardar', 'error'); }
+}
+
+async function importarNifsCsv() {
+  const input = document.getElementById('cfg-csv-input');
+  const msg = document.getElementById('cfg-pioneros-msg');
+  if (!input.files.length) { toast('Selecciona un fichero CSV', 'error'); return; }
+  const text = await input.files[0].text();
+  const lineas = text.split(/[\r\n]+/).map(l => l.trim()).filter(l => l.length > 0);
+  let nuevos = 0, duplicados = 0, ignorados = 0;
+  for (const linea of lineas) {
+    const cols = linea.split(/[,;]/).map(c => c.trim().replace(/^["']|["']$/g, ''));
+    const nif = cols[0]?.toUpperCase() || '';
+    const nombre = cols[1] || '';
+    if (!nif || nif.toLowerCase() === 'nif') continue; // cabecera o vacío
+    if (!/^[A-Z0-9]{7,10}$/.test(nif)) { ignorados++; continue; }
+    if (_nifsPioneros.some(i => i.nif === nif)) { duplicados++; continue; }
+    _nifsPioneros.push({ nif, nombre });
+    nuevos++;
+  }
+  if (nuevos === 0) {
+    msg.innerHTML = `<span style="color:var(--text-2);">No se encontraron NIFs nuevos.${duplicados > 0 ? ' ' + duplicados + ' ya estaban en la lista.' : ''}${ignorados > 0 ? ' ' + ignorados + ' líneas ignoradas (formato incorrecto).' : ''}</span>`;
+    return;
+  }
+  _nifsPioneros.sort((a, b) => a.nif.localeCompare(b.nif));
+  try {
+    await guardarNifsPioneros();
+    renderNifsPioneros();
+    input.value = '';
+    msg.innerHTML = `<span style="color:var(--green);">✓ ${nuevos} NIF${nuevos !== 1 ? 's' : ''} importado${nuevos !== 1 ? 's' : ''}${duplicados > 0 ? ' · ' + duplicados + ' duplicados ignorados' : ''}${ignorados > 0 ? ' · ' + ignorados + ' líneas ignoradas' : ''}.</span>`;
+    toast(`${nuevos} NIFs importados`, 'success');
+  } catch(e) { toast('Error al guardar', 'error'); }
+}
+
+function exportarNifsCsv() {
+  if (_nifsPioneros.length === 0) { toast('No hay NIFs para exportar', 'error'); return; }
+  const csv = 'NIF,Nombre\n' + _nifsPioneros.map(i => `${i.nif},${i.nombre}`).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'nifs_premium_vitryna.csv';
+  a.click(); URL.revokeObjectURL(url);
 }
