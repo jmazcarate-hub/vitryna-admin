@@ -245,6 +245,15 @@
         </div>
       </div>
 
+      <div class="kpi-grid" style="margin-bottom:24px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));">
+        <div class="kpi-card blue">
+          <div class="kpi-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A6BFF" stroke-width="2"><path d="M12 2v13"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg></div>
+          <div class="kpi-label">Descargas guía comercios</div>
+          <div class="kpi-value" id="est-descargas-guia">—</div>
+          <div class="kpi-sub" id="est-descargas-guia-sub">Última: —</div>
+        </div>
+      </div>
+
       <div class="charts-row" style="margin-bottom:24px;">
         <div class="card">
           <div class="card-header"><div><div class="card-title">Publicaciones por día</div><div class="card-sub">Últimos 30 días</div></div></div>
@@ -605,6 +614,45 @@ async function limpiarHuerfanos() {
     btnLimpiar.textContent = '🗑️ Limpiar huérfanos';
   }
 }
+
+// ── CONTADOR DESCARGAS GUÍA ───────────────────────────────────────────────────
+let _descargasGuiaIniciado = false;
+
+function cargarDescargasGuia() {
+  if (_descargasGuiaIniciado) return;
+  _descargasGuiaIniciado = true;
+  db.collection('config').doc('estadisticas').onSnapshot(doc => {
+    const el = document.getElementById('est-descargas-guia');
+    const elSub = document.getElementById('est-descargas-guia-sub');
+    if (!el || !elSub) return;
+    if (!doc.exists) {
+      el.textContent = '0';
+      elSub.textContent = 'Sin descargas aún';
+      return;
+    }
+    const data = doc.data();
+    const total = data.descargas_guia || 0;
+    el.textContent = total.toLocaleString('es-ES');
+    const ultima = data.ultima_descarga?.toDate();
+    if (ultima) {
+      const fechaStr = ultima.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const horaStr = ultima.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      elSub.textContent = `Última: ${fechaStr} ${horaStr}`;
+    } else {
+      elSub.textContent = 'Sin descargas aún';
+    }
+  }, err => {
+    console.error('Error cargando descargas guía:', err);
+  });
+}
+
+// Enganchar la carga al primer click en la sección Estadísticas
+document.addEventListener('DOMContentLoaded', () => {
+  const navEstadisticas = document.querySelector('[data-section="estadisticas"]');
+  if (navEstadisticas) {
+    navEstadisticas.addEventListener('click', cargarDescargasGuia);
+  }
+});
 </script>
 
 <script src="js/auth.js"></script>
