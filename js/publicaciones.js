@@ -25,6 +25,14 @@ async function loadPublicaciones() {
           renderPubs();
         });
       });
+      document.querySelectorAll('#filtros-temporal-pubs .filter-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          document.querySelectorAll('#filtros-temporal-pubs .filter-chip').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          filtroTemporal = chip.dataset.temporal;
+          renderPubs();
+        });
+      });
     }
   } catch (e) { el.innerHTML = '<div class="empty">Error cargando publicaciones</div>'; }
 }
@@ -83,16 +91,6 @@ function renderPubs() {
       <span>${lista.length} publicación${lista.length !== 1 ? 'es' : ''}</span>
       <span style="color:var(--green)">● ${activas} activa${activas !== 1 ? 's' : ''}</span>
       <span style="color:var(--text-3)">● ${caducadas} caducada${caducadas !== 1 ? 's' : ''}</span>
-      <div style="margin-left:auto;display:flex;gap:6px;">
-        ${['todas','hoy','semana','mes'].map(f => `
-          <span onclick="setFiltroTemporal('${f}')" id="ft-${f}"
-            style="cursor:pointer;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:500;
-            background:${filtroTemporal===f ? 'var(--blue)' : 'var(--bg)'};
-            color:${filtroTemporal===f ? 'white' : 'var(--text-2)'};
-            border:1px solid ${filtroTemporal===f ? 'var(--blue)' : 'var(--border)'};">
-            ${{todas:'Todas',hoy:'Hoy',semana:'7 días',mes:'30 días'}[f]}
-          </span>`).join('')}
-      </div>
     </div>
     <table>
       <thead><tr><th>Publicación</th><th>Comercio</th><th>Estado</th><th>Publicada</th><th>Vistas</th><th>Clics</th><th></th></tr></thead>
@@ -114,11 +112,6 @@ function renderPubs() {
         </tr>`;
       }).join('')}</tbody>
     </table>`;
-}
-
-function setFiltroTemporal(f) {
-  filtroTemporal = f;
-  renderPubs();
 }
 
 async function eliminarPub(id) {
