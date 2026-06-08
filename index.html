@@ -203,6 +203,13 @@
           <div class="filter-chip" data-filter="activas">Activas</div>
           <div class="filter-chip" data-filter="caducadas">Caducadas</div>
         </div>
+        <div class="filter-bar" id="filtros-temporal-pubs" style="border-top:1px solid var(--border);padding-top:8px;">
+          <span style="font-size:0.75rem;color:var(--text-2);margin-right:4px;">Período:</span>
+          <div class="filter-chip active" data-temporal="todas">Todas</div>
+          <div class="filter-chip" data-temporal="hoy">Hoy</div>
+          <div class="filter-chip" data-temporal="semana">7 días</div>
+          <div class="filter-chip" data-temporal="mes">30 días</div>
+        </div>
         <div id="tabla-publicaciones"><div class="spinner"></div></div>
       </div>
     </div>
@@ -326,20 +333,6 @@
               <button class="btn-secondary" id="btn-imprimir" style="display:none" onclick="window.print()">🖨️ Imprimir informe</button>
             </div>
             <div id="mant-huerfanos-resultado"></div>
-          </div>
-
-          <!-- Comprobación de contadores de seguidores -->
-          <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
-            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">Comprobación de seguidores</div>
-            <div style="font-size:0.82rem;color:var(--text-2);margin-bottom:16px;">
-              Compara el contador <code>seguidores_count</code> de cada comercio con los seguidores reales
-              (vecinos y comercios que lo tienen en su lista de amigos). Detecta y corrige desajustes.
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-              <button class="btn-secondary" id="btn-analizar-seg" onclick="analizarSeguidores()">🔍 Analizar seguidores</button>
-              <button class="btn-sm" id="btn-cuadrar-seg" style="display:none;background:var(--blue);color:#fff;" onclick="cuadrarSeguidores()">✓ Cuadrar contadores</button>
-            </div>
-            <div id="mant-seguidores-resultado"></div>
           </div>
 
         </div>
@@ -667,101 +660,6 @@ document.addEventListener('DOMContentLoaded', () => {
     navEstadisticas.addEventListener('click', cargarDescargasGuia);
   }
 });
-
-// ── COMPROBACIÓN DE SEGUIDORES ────────────────────────────────────────────────
-let _desajustes = [];
-
-async function analizarSeguidores() {
-  const el = document.getElementById('mant-seguidores-resultado');
-  const btnCuadrar = document.getElementById('btn-cuadrar-seg');
-  const btnAnalizar = document.getElementById('btn-analizar-seg');
-
-  el.innerHTML = '<div style="color:var(--text-2);font-size:0.85rem;">⏳ Analizando seguidores...</div>';
-  btnAnalizar.disabled = true;
-  btnCuadrar.style.display = 'none';
-  _desajustes = [];
-
-  try {
-    // 1. Cargar todos los comercios
-    const comerciosSnap = await db.collection('comercios').get();
-    const comercios = {};
-    comerciosSnap.docs.forEach(d => { comercios[d.id] = { nombre: d.data().nombre_comercio || d.id, contador: d.data().seguidores_count || 0 }; });
-
-    // 2. Contar seguidores reales desde usuarios
-    const contadores = {};
-    Object.keys(comercios).forEach(id => { contadores[id] = 0; });
-
-    const usuariosSnap = await db.collection('usuarios').get();
-    usuariosSnap.docs.forEach(d => {
-      const amigos = d.data().amigos || [];
-      amigos.forEach(cid => { if (contadores[cid] !== undefined) contadores[cid]++; });
-    });
-
-    // 3. Contar seguidores desde comercios
-    comerciosSnap.docs.forEach(d => {
-      const amigos = d.data().amigos || [];
-      amigos.forEach(cid => { if (contadores[cid] !== undefined) contadores[cid]++; });
-    });
-
-    // 4. Detectar desajustes
-    Object.keys(comercios).forEach(id => {
-      const real = contadores[id];
-      const guardado = comercios[id].contador;
-      if (real !== guardado) {
-        _desajustes.push({ id, nombre: comercios[id].nombre, real, guardado });
-      }
-    });
-
-    if (_desajustes.length === 0) {
-      el.innerHTML = '<div style="padding:12px;background:var(--green-light);border-radius:8px;color:var(--green);font-size:0.85rem;">✓ Todos los contadores están correctos.</div>';
-    } else {
-      let html = `<div style="font-size:0.83rem;color:var(--text-2);margin-bottom:10px;">${_desajustes.length} comercio(s) con contador desajustado:</div>`;
-      html += '<table style="width:100%;border-collapse:collapse;font-size:0.83rem;">';
-      html += '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px 8px;">Comercio</th><th style="text-align:center;padding:6px 8px;">Contador</th><th style="text-align:center;padding:6px 8px;">Real</th><th style="text-align:center;padding:6px 8px;">Diferencia</th></tr></thead><tbody>';
-      _desajustes.forEach(d => {
-        const diff = d.real - d.guardado;
-        const color = diff > 0 ? 'var(--green)' : 'var(--red)';
-        html += `<tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:6px 8px;">${d.nombre}</td>
-          <td style="text-align:center;padding:6px 8px;">${d.guardado}</td>
-          <td style="text-align:center;padding:6px 8px;">${d.real}</td>
-          <td style="text-align:center;padding:6px 8px;color:${color};font-weight:600;">${diff > 0 ? '+' : ''}${diff}</td>
-        </tr>`;
-      });
-      html += '</tbody></table>';
-      el.innerHTML = html;
-      btnCuadrar.style.display = 'inline-flex';
-    }
-  } catch(e) {
-    el.innerHTML = `<div style="color:var(--red);font-size:0.85rem;">Error: ${e.message}</div>`;
-  } finally {
-    btnAnalizar.disabled = false;
-  }
-}
-
-async function cuadrarSeguidores() {
-  if (!_desajustes.length) return;
-  const btnCuadrar = document.getElementById('btn-cuadrar-seg');
-  const el = document.getElementById('mant-seguidores-resultado');
-  btnCuadrar.disabled = true;
-  btnCuadrar.textContent = '⏳ Cuadrando...';
-
-  try {
-    const batch = db.batch();
-    _desajustes.forEach(d => {
-      batch.update(db.collection('comercios').doc(d.id), { seguidores_count: d.real });
-    });
-    await batch.commit();
-    el.innerHTML += `<div style="margin-top:12px;padding:10px 14px;background:var(--green-light);border-radius:8px;color:var(--green);font-size:0.85rem;">✓ ${_desajustes.length} contador(es) corregido(s).</div>`;
-    _desajustes = [];
-    btnCuadrar.style.display = 'none';
-    if (typeof toast === 'function') toast('Contadores de seguidores corregidos', 'success');
-  } catch(e) {
-    el.innerHTML += `<div style="color:var(--red);margin-top:8px;font-size:0.85rem;">Error: ${e.message}</div>`;
-    btnCuadrar.disabled = false;
-    btnCuadrar.textContent = '✓ Cuadrar contadores';
-  }
-}
 </script>
 
 <script src="js/auth.js"></script>
