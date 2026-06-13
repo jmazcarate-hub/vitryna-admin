@@ -23,14 +23,6 @@ async function loadConfig() {
             <input type="number" class="config-input" id="cfg-dias-vida" value="${p.dias_vida_publicacion ?? 7}" min="1" max="60">
           </div>
           <div class="config-field">
-            <div class="config-field-info"><div class="config-field-label">Límite vistas para borrar publicación</div><div class="config-field-desc">Si una publicación supera este número de vistas no se puede eliminar</div></div>
-            <input type="number" class="config-input" id="cfg-limite-vistas-borrado" value="${p.limite_vistas_borrado ?? 15}" min="0">
-          </div>
-          <div class="config-field">
-            <div class="config-field-info"><div class="config-field-label">Límite clics para borrar publicación</div><div class="config-field-desc">Si una publicación supera este número de clics no se puede eliminar</div></div>
-            <input type="number" class="config-input" id="cfg-limite-clics-borrado" value="${p.limite_clics_borrado ?? 2}" min="0">
-          </div>
-          <div class="config-field">
             <div class="config-field-info"><div class="config-field-label">Radio máximo del feed (km)</div><div class="config-field-desc">Distancia máxima que puede seleccionar un vecino en el slider</div></div>
             <input type="number" class="config-input" id="cfg-radio" value="${p.radio_max_km ?? 3}" min="0.5" max="20" step="0.5">
           </div>
@@ -135,8 +127,6 @@ async function guardarConfig() {
     const params = {
       limite_pubs_free:      parseInt(document.getElementById('cfg-limite-free').value) || 2,
       dias_vida_publicacion: parseInt(document.getElementById('cfg-dias-vida').value) || 7,
-      limite_vistas_borrado: parseInt(document.getElementById('cfg-limite-vistas-borrado').value) ?? 15,
-      limite_clics_borrado:  parseInt(document.getElementById('cfg-limite-clics-borrado').value) ?? 2,
       radio_max_km:          parseFloat(document.getElementById('cfg-radio').value) || 3,
       modo_arranque:         document.getElementById('cfg-modo-arranque').checked,
       precio_plan_pro:       parseFloat(document.getElementById('cfg-precio-pro').value) || 19.90,
