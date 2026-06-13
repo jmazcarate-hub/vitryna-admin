@@ -298,28 +298,6 @@
         </div>
         <div style="padding:20px;display:flex;flex-direction:column;gap:24px;">
 
-          <!-- Borrar publicaciones antiguas -->
-          <div style="margin-bottom:28px;padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
-            <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">Borrar publicaciones antiguas</div>
-            <div style="font-size:0.82rem;color:var(--text-2);margin-bottom:16px;">
-              Elimina permanentemente las publicaciones, sus estadísticas y fotos con más de N días desde su publicación.
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-              <div>
-                <label style="font-size:0.78rem;color:var(--text-2);display:block;margin-bottom:3px;">Días de antigüedad</label>
-                <input type="number" id="mant-dias" value="30" min="1"
-                  style="width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg);">
-              </div>
-              <div style="padding-top:18px;">
-                <button class="btn-secondary" onclick="contarPublicacionesAntiguas()">Ver cuántas hay</button>
-              </div>
-              <div style="padding-top:18px;">
-                <button class="btn-sm danger" onclick="borrarPublicacionesAntiguasCompleto()">Eliminar</button>
-              </div>
-            </div>
-            <div id="mant-resultado" style="margin-top:12px;font-size:0.83rem;color:var(--text-2);"></div>
-          </div>
-
           <!-- Detector de huérfanos -->
           <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
             <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;">Detector de datos huérfanos</div>
@@ -421,36 +399,6 @@
 
 <script>
 // ── MANTENIMIENTO ─────────────────────────────────────────────────────────────
-
-async function contarPublicacionesAntiguas() {
-  const dias = parseInt(document.getElementById('mant-dias').value) || 30;
-  const limite = new Date(Date.now() - dias * 86400000);
-  const el = document.getElementById('mant-resultado');
-  el.textContent = 'Consultando...';
-  try {
-    const snap = await db.collection('Publicaciones')
-      .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(limite)).get();
-    el.innerHTML = `Hay <strong>${snap.size}</strong> publicación${snap.size !== 1 ? 'es' : ''} con más de ${dias} días (incluye stats y fotos).`;
-  } catch(e) { el.textContent = 'Error al consultar: ' + e.message; }
-}
-
-async function borrarPublicacionesAntiguasCompleto() {
-  const dias = parseInt(document.getElementById('mant-dias').value) || 30;
-  const el = document.getElementById('mant-resultado');
-  const limite = new Date(Date.now() - dias * 86400000);
-  const snap = await db.collection('Publicaciones')
-    .where('timestamp', '<', firebase.firestore.Timestamp.fromDate(limite)).get();
-  if (snap.empty) { el.textContent = 'No hay publicaciones con esa antigüedad.'; return; }
-  if (!confirm(`¿Eliminar ${snap.size} publicación${snap.size !== 1 ? 'es' : ''} con más de ${dias} días?\n\nSe eliminarán documentos, estadísticas y fotos. Esta acción no se puede deshacer.`)) return;
-  el.innerHTML = '<span style="color:var(--text-2)">Eliminando... puede tardar unos segundos.</span>';
-  try {
-    const fn = firebase.app().functions('europe-west1').httpsCallable('borrarPublicacionesAntiguas');
-    const result = await fn({ dias });
-    const n = result.data.eliminadas;
-    el.innerHTML = `<span style="color:var(--green)">✓ ${n} publicación${n !== 1 ? 'es' : ''} eliminada${n !== 1 ? 's' : ''} completamente.</span>`;
-    if (typeof toast === 'function') toast(`${n} publicaciones eliminadas`, 'success');
-  } catch(e) { el.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`; }
-}
 
 // ── DETECTOR DE HUÉRFANOS ─────────────────────────────────────────────────────
 let _informeHuerfanos = null;
