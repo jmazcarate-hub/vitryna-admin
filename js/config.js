@@ -250,7 +250,7 @@ async function cargarNifsPioneros() {
     const doc = await db.collection('config').doc('pioneros').get();
     const data = doc.exists ? doc.data() : {};
     // Soportar formato antiguo (array de strings) y nuevo (array de objetos)
-    const raw = data.nifs_premium_detalle || data.nifs_premium || [];
+    const raw = data.nifs_premium || [];
     _nifsPioneros = raw.map(item =>
       typeof item === 'string' ? { nif: item, nombre: '' } : item
     );
@@ -286,11 +286,8 @@ function renderNifsPioneros() {
 }
 
 async function guardarNifsPioneros() {
-  // Guardar como array de objetos Y array de solo NIFs para compatibilidad con la app Flutter
-  const nifsArray = _nifsPioneros.map(i => i.nif);
   await db.collection('config').doc('pioneros').set({
-    nifs_premium: nifsArray,
-    nifs_premium_detalle: _nifsPioneros,
+    nifs_premium: _nifsPioneros,
   }, { merge: true });
 }
 
