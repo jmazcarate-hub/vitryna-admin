@@ -84,6 +84,22 @@ async function loadConfig() {
         <button class="btn-primary" style="padding:12px 32px;font-size:0.95rem;" onclick="guardarConfig()">Guardar configuración</button>
       </div>
 
+      <div class="config-section" style="margin-bottom:32px;">
+        <div class="config-section-title">Barrios activos</div>
+        <div class="config-section-desc">
+          Lista de barrios disponibles en la app. Se actualiza automáticamente cuando un comercio se registra,
+          pero puedes añadir barrios aquí para tenerlos listos antes de que lleguen los primeros comercios.
+        </div>
+        <div id="barrios-chips" style="display:flex;flex-wrap:wrap;gap:8px;min-height:38px;margin-bottom:14px;"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="cfg-barrio-nuevo" placeholder="Ej: Las Delicias"
+            style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.88rem;background:var(--surface);width:220px;"
+            onkeydown="if(event.key==='Enter') añadirBarrio()">
+          <button class="btn-secondary" onclick="añadirBarrio()" style="padding:7px 16px;">+ Añadir barrio</button>
+        </div>
+        <div id="cfg-barrios-msg" style="font-size:0.82rem;margin-top:8px;"></div>
+      </div>
+
       <div class="config-section" style="margin-bottom:40px;">
         <div class="config-section-title">NIFs Premium — Plan Pionero</div>
         <div class="config-section-desc">
@@ -119,6 +135,7 @@ async function loadConfig() {
         <div id="cfg-pioneros-msg" style="font-size:0.82rem;margin-top:8px;"></div>
       </div>`;
   } catch (e) { el.innerHTML = '<div class="empty">Error cargando configuración</div>'; }
+  cargarBarrios();
   cargarNifsPioneros();
 }
 
@@ -154,6 +171,71 @@ async function guardarConfig() {
     ]);
     toast('Configuración guardada', 'success');
   } catch (e) { toast('Error guardando configuración', 'error'); }
+}
+
+// ── BARRIOS ACTIVOS ──────────────────────────────────────────────────────────
+
+let _barrios = [];
+
+async function cargarBarrios() {
+  const el = document.getElementById('barrios-chips');
+  if (!el) return;
+  try {
+    const doc = await db.collection('config').doc('parametros').get();
+    _barrios = [...(doc.data()?.barrios_activos || [])].sort((a, b) => a.localeCompare(b, 'es'));
+    renderBarrios();
+  } catch(e) {
+    el.innerHTML = '<span style="color:var(--red);font-size:0.82rem;">Error cargando barrios</span>';
+  }
+}
+
+function renderBarrios() {
+  const el = document.getElementById('barrios-chips');
+  if (!el) return;
+  if (_barrios.length === 0) {
+    el.innerHTML = '<span style="font-size:0.83rem;color:var(--text-3);">Sin barrios registrados todavía.</span>';
+    return;
+  }
+  el.innerHTML = _barrios.map(b => `
+    <span style="display:inline-flex;align-items:center;gap:6px;background:var(--blue-light,#e8f0ff);color:var(--blue);
+      border:1.5px solid var(--blue);border-radius:20px;padding:4px 12px;font-size:0.83rem;font-weight:500;">
+      ${b}
+      <span onclick="eliminarBarrio('${b.replace(/'/g, "\\'")}')"
+        style="cursor:pointer;font-size:1rem;line-height:1;color:var(--blue);opacity:0.6;"
+        title="Eliminar ${b}">×</span>
+    </span>`).join('');
+}
+
+async function añadirBarrio() {
+  const input = document.getElementById('cfg-barrio-nuevo');
+  const msg = document.getElementById('cfg-barrios-msg');
+  const barrio = input.value.trim();
+  if (!barrio) { toast('Escribe el nombre del barrio', 'error'); return; }
+  if (_barrios.some(b => b.toLowerCase() === barrio.toLowerCase())) {
+    toast('Ese barrio ya está en la lista', 'error'); return;
+  }
+  try {
+    await db.collection('config').doc('parametros').update({
+      barrios_activos: firebase.firestore.FieldValue.arrayUnion(barrio),
+    });
+    _barrios = [..._barrios, barrio].sort((a, b) => a.localeCompare(b, 'es'));
+    input.value = '';
+    msg.innerHTML = '';
+    renderBarrios();
+    toast(`Barrio "${barrio}" añadido`, 'success');
+  } catch(e) { toast('Error al guardar', 'error'); }
+}
+
+async function eliminarBarrio(barrio) {
+  if (!confirm(`¿Eliminar "${barrio}" de la lista de barrios activos?`)) return;
+  try {
+    await db.collection('config').doc('parametros').update({
+      barrios_activos: firebase.firestore.FieldValue.arrayRemove(barrio),
+    });
+    _barrios = _barrios.filter(b => b !== barrio);
+    renderBarrios();
+    toast(`Barrio "${barrio}" eliminado`, 'success');
+  } catch(e) { toast('Error al guardar', 'error'); }
 }
 
 // ── NIFs PREMIUM — Plan Pionero ─────────────────────────────────────────────
