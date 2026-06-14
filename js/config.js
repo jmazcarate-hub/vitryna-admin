@@ -250,7 +250,7 @@ async function cargarNifsPioneros() {
     const doc = await db.collection('config').doc('pioneros').get();
     const data = doc.exists ? doc.data() : {};
     // Soportar formato antiguo (array de strings) y nuevo (array de objetos)
-    const raw = data.nifs_premium || [];
+    const raw = data.nifs_premium_detalle || data.nifs_premium || [];
     _nifsPioneros = raw.map(item =>
       typeof item === 'string' ? { nif: item, nombre: '' } : item
     );
