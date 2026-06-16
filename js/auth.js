@@ -123,6 +123,18 @@ const seccionMeta = {
   mantenimiento: { title: 'Mantenimiento',    sub: 'Limpieza y gestión de datos' },
   config:        { title: 'Configuración',    sub: 'Parámetros de la aplicación' },
 };
+function cerrarSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('visible');
+}
+
+document.getElementById('btn-hamburger').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('visible');
+});
+
+document.getElementById('sidebar-overlay').addEventListener('click', cerrarSidebar);
+
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
     const sec = item.dataset.section;
@@ -133,6 +145,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
     document.getElementById('topbar-title').textContent = seccionMeta[sec].title;
     document.getElementById('topbar-sub').textContent   = seccionMeta[sec].sub;
     cargarModulo(sec);
+    cerrarSidebar();
   });
 });
 
