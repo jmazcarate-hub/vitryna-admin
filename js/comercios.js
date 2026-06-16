@@ -6,6 +6,12 @@ async function loadComercios() {
   try {
     const snap = await db.collection('comercios').orderBy('creado_en', 'desc').get();
     todosComercios = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const usuariosSnaps = await Promise.all(
+      todosComercios.map(c => db.collection('usuarios').doc(c.id).get())
+    );
+    usuariosSnaps.forEach((uSnap, i) => {
+      todosComercios[i].seguidos_count = (uSnap.data()?.amigos || []).length;
+    });
     renderComercios();
     if (!document.getElementById('search-comercios')._bound) {
       document.getElementById('search-comercios').addEventListener('input', renderComercios);
@@ -57,7 +63,7 @@ function renderComercios() {
       ${filtroCom !== 'todos' ? ` · filtro: <strong>${filtroCom}</strong>` : ''}
     </div>
     <table>
-      <thead><tr><th>Comercio</th><th>Categoría</th><th>Plan</th><th>Vencimiento</th><th>Stripe</th><th style="text-align:center;">Boosts 4h</th><th style="text-align:center;">Boosts 24h</th><th>Registro</th><th>Acciones</th></tr></thead>
+      <thead><tr><th>Comercio</th><th>Categoría</th><th>Plan</th><th>Vencimiento</th><th>Stripe</th><th style="text-align:center;">Boosts 4h</th><th style="text-align:center;">Boosts 24h</th><th style="text-align:center;">Seguidores</th><th style="text-align:center;">Siguiendo</th><th>Registro</th><th>Acciones</th></tr></thead>
       <tbody>${lista.map(c => {
         const plan = c.plan_suscripcion || 'free';
         const vi = plan !== 'free' ? vencInfo(c.plan_hasta) : { texto: '—', clase: '' };
@@ -74,6 +80,8 @@ function renderComercios() {
           <td>${stripeTag}</td>
           <td style="text-align:center;">${badgeBoost(c.boosts_4h, 'orange')}</td>
           <td style="text-align:center;">${badgeBoost(c.boosts_24h, 'blue')}</td>
+          <td style="text-align:center;font-size:0.85rem;">${c.seguidores_count || 0}</td>
+          <td style="text-align:center;font-size:0.85rem;">${c.seguidos_count || 0}</td>
           <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(c.creado_en)}</td>
           <td><button class="btn-sm" onclick="abrirModalComercio('${c.id}')">Gestionar</button></td>
         </tr>`;
