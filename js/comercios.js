@@ -379,9 +379,9 @@ async function cargarBajas() {
   const el = document.getElementById('tabla-comercios');
   el.innerHTML = '<div class="spinner"></div>';
   try {
-    const snap = await db.collection('stats_comercio').where('activo', '==', false).get();
+    const snap = await db.collection('comercios').where('subscription_cancelada', '==', true).get();
     bajasData = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (b.fecha_baja?.seconds || 0) - (a.fecha_baja?.seconds || 0));
+      .sort((a, b) => (b.plan_hasta?.seconds || 0) - (a.plan_hasta?.seconds || 0));
     renderBajas();
   } catch(e) {
     el.innerHTML = '<div class="empty">Error cargando bajas</div>';
@@ -397,11 +397,12 @@ function renderBajas() {
     </div>
     <table>
       <thead><tr>
-        <th>Comercio</th><th>Plan tenía</th><th>Barrio</th>
-        <th>Fecha baja</th><th>Motivo</th><th>Email enviado</th><th>Acción</th>
+        <th>Comercio</th><th>Plan</th><th>Barrio</th>
+        <th>Vence</th><th>Motivo encuesta</th><th>Email enviado</th><th>Acción</th>
       </tr></thead>
       <tbody>${bajasData.map(c => {
         const plan = c.plan_suscripcion || 'free';
+        const vi = vencInfo(c.plan_hasta);
         const yaEnviado = !!c.retencion_enviado;
         const motivoLabels = {
           precio: 'Precio alto', resultados: 'Sin resultados',
@@ -416,7 +417,7 @@ function renderBajas() {
           </td>
           <td><span class="badge ${plan}">${plan.toUpperCase()}</span></td>
           <td style="font-size:0.83rem;color:var(--text-2)">${c.barrio || '—'}</td>
-          <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(c.fecha_baja)}</td>
+          <td><span class="${vi.clase}" style="font-size:0.8rem;">${vi.texto}</span></td>
           <td style="font-size:0.8rem;${c.motivo_baja ? 'color:var(--orange);font-weight:500' : 'color:var(--text-3)'}">
             ${motivoTexto}
           </td>
