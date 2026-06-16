@@ -104,7 +104,9 @@ async function abrirModalComercio(id) {
   document.getElementById('mc-email').textContent  = c.email || '—';
   document.getElementById('mc-barrio').textContent = c.barrio || '—';
   document.getElementById('mc-dir').textContent    = c.direccion || '—';
-  document.getElementById('mc-reg').textContent    = formatDate(c.creado_en);
+  document.getElementById('mc-reg').textContent        = formatDate(c.creado_en);
+  document.getElementById('mc-seguidores').textContent = c.seguidores_count || 0;
+  document.getElementById('mc-siguiendo').textContent  = c.seguidos_count   || 0;
 
   const plan = c.plan_suscripcion || 'free';
   const tieneStripe = !!c.ultimo_pago_stripe;
