@@ -21,7 +21,12 @@ async function loadComercios() {
           document.querySelectorAll('#filtros-comercios .filter-chip').forEach(c => c.classList.remove('active'));
           chip.classList.add('active');
           filtroCom = chip.dataset.filter;
-          renderComercios();
+          if (filtroCom === 'bajas') {
+            bajasData = [];
+            cargarBajas();
+          } else {
+            renderComercios();
+          }
         });
       });
     }
@@ -365,6 +370,87 @@ async function activarPilotoComercio() {
     cerrarModalComercio();
     renderComercios();
   } catch (e) { toast('Error al activar piloto', 'error'); }
+}
+
+// ── BAJAS ─────────────────────────────────────────────────────────────────────
+let bajasData = [];
+
+async function cargarBajas() {
+  const el = document.getElementById('tabla-comercios');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const snap = await db.collection('stats_comercio').where('activo', '==', false).get();
+    bajasData = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.fecha_baja?.seconds || 0) - (a.fecha_baja?.seconds || 0));
+    renderBajas();
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Error cargando bajas</div>';
+  }
+}
+
+function renderBajas() {
+  const el = document.getElementById('tabla-comercios');
+  if (!bajasData.length) { el.innerHTML = '<div class="empty">No hay comercios dados de baja</div>'; return; }
+  el.innerHTML = `
+    <div style="padding:8px 20px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);">
+      ${bajasData.length} baja${bajasData.length !== 1 ? 's' : ''}
+    </div>
+    <table>
+      <thead><tr>
+        <th>Comercio</th><th>Plan tenía</th><th>Barrio</th>
+        <th>Fecha baja</th><th>Motivo</th><th>Email enviado</th><th>Acción</th>
+      </tr></thead>
+      <tbody>${bajasData.map(c => {
+        const plan = c.plan_suscripcion || 'free';
+        const yaEnviado = !!c.retencion_enviado;
+        const motivoLabels = {
+          precio: 'Precio alto', resultados: 'Sin resultados',
+          tiempo: 'Sin tiempo', canal: 'Otro canal', otro: 'Otro',
+        };
+        const motivoTexto = c.motivo_baja ? (motivoLabels[c.motivo_baja] || c.motivo_baja) : '—';
+        return `<tr>
+          <td>
+            <div style="font-weight:500">${c.nombre_comercio || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-2)">${c.email || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-3)">${c.telefono || '—'}</div>
+          </td>
+          <td><span class="badge ${plan}">${plan.toUpperCase()}</span></td>
+          <td style="font-size:0.83rem;color:var(--text-2)">${c.barrio || '—'}</td>
+          <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(c.fecha_baja)}</td>
+          <td style="font-size:0.8rem;${c.motivo_baja ? 'color:var(--orange);font-weight:500' : 'color:var(--text-3)'}">
+            ${motivoTexto}
+          </td>
+          <td style="font-size:0.8rem;${yaEnviado ? 'color:var(--green)' : 'color:var(--text-3)'}">
+            ${yaEnviado ? '✓ ' + formatDate(c.retencion_enviado) : '—'}
+          </td>
+          <td>
+            <button class="btn-sm" id="btn-ret-${c.id}" onclick="enviarEmailRetencion('${c.id}', this)">
+              ${yaEnviado ? 'Reenviar' : 'Enviar email'}
+            </button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+async function enviarEmailRetencion(id, btn) {
+  const c = bajasData.find(x => x.id === id);
+  if (!c?.email) { toast('Este comercio no tiene email', 'error'); return; }
+  if (!confirm(`¿Enviar email de retención a ${c.nombre_comercio} (${c.email})?`)) return;
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('enviarEmailRetencion');
+    await fn({ comercioId: id });
+    const idx = bajasData.findIndex(x => x.id === id);
+    if (idx >= 0) bajasData[idx].retencion_enviado = firebase.firestore.Timestamp.now();
+    toast('Email de retención enviado', 'success');
+    renderBajas();
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Enviar email';
+    toast('Error al enviar: ' + (e.message || e), 'error');
+  }
 }
 
 async function generarFacturaAdmin(comercioId, comercio, concepto, importeTotal) {
