@@ -11,6 +11,7 @@ async function loadEstadisticas() {
       cargarGraficaEngagement(),
       cargarTopComercios(),
       cargarTopPublicaciones(),
+      cargarRankingActividad(),
     ]);
   } catch (e) {
     console.error('Error cargando estadísticas:', e);
@@ -194,6 +195,83 @@ async function cargarTopPublicaciones() {
       </div>
       <div style="font-size:0.8rem;font-family:'DM Mono',monospace;color:var(--orange);font-weight:600;flex-shrink:0;">${(p.clics||0).toLocaleString('es-ES')}</div>
     </div>`).join('');
+}
+
+// ── RANKING DE ACTIVIDAD ──
+async function cargarRankingActividad() {
+  const [pubsSnap, comSnap] = await Promise.all([
+    db.collection('Publicaciones').get(),
+    db.collection('comercios').get(),
+  ]);
+
+  const hace30 = new Date();
+  hace30.setDate(hace30.getDate() - 30);
+
+  const mapa = {};
+  comSnap.docs.forEach(doc => {
+    const d = doc.data();
+    mapa[doc.id] = { nombre: d.nombre_comercio || '—', pubs30: 0, ultimaPub: null };
+  });
+
+  pubsSnap.docs.forEach(doc => {
+    const d = doc.data();
+    const id = d.comercio_id;
+    if (!id || !mapa[id]) return;
+    const ts = d.timestamp?.toDate();
+    if (!ts) return;
+    if (ts > hace30) mapa[id].pubs30++;
+    if (!mapa[id].ultimaPub || ts > mapa[id].ultimaPub) mapa[id].ultimaPub = ts;
+  });
+
+  const lista = Object.values(mapa);
+
+  const masActivos = lista.filter(c => c.pubs30 > 0)
+    .sort((a, b) => b.pubs30 - a.pubs30).slice(0, 10);
+
+  const inactivos = lista.filter(c => c.pubs30 === 0)
+    .sort((a, b) => {
+      if (!a.ultimaPub && !b.ultimaPub) return 0;
+      if (!a.ultimaPub) return -1;
+      if (!b.ultimaPub) return 1;
+      return a.ultimaPub - b.ultimaPub;
+    }).slice(0, 10);
+
+  const elActivos = document.getElementById('ranking-activos');
+  if (!masActivos.length) {
+    elActivos.innerHTML = '<div class="empty">Sin publicaciones en los últimos 30 días</div>';
+  } else {
+    const maxPubs = masActivos[0].pubs30 || 1;
+    elActivos.innerHTML = masActivos.map((c, i) => `
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+        <div style="width:22px;height:22px;border-radius:6px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;color:var(--blue);flex-shrink:0;">${i+1}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre}</div>
+          <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+            <div style="height:100%;width:${Math.round(c.pubs30/maxPubs*100)}%;background:var(--blue);border-radius:2px;"></div>
+          </div>
+        </div>
+        <div style="font-size:0.8rem;font-family:'DM Mono',monospace;color:var(--blue);font-weight:600;flex-shrink:0;">${c.pubs30} pub${c.pubs30 !== 1 ? 's' : ''}</div>
+      </div>`).join('');
+  }
+
+  const elInactivos = document.getElementById('ranking-inactivos');
+  if (!inactivos.length) {
+    elInactivos.innerHTML = '<div class="empty">Todos los comercios han publicado recientemente</div>';
+  } else {
+    elInactivos.innerHTML = inactivos.map(c => {
+      const dias = c.ultimaPub
+        ? Math.floor((Date.now() - c.ultimaPub.getTime()) / 86400000)
+        : null;
+      const etiqueta = dias === null ? 'Nunca' : `hace ${dias}d`;
+      const color = dias === null || dias > 30 ? 'var(--red)' : 'var(--orange)';
+      const colorLight = dias === null || dias > 30 ? 'var(--red-light)' : 'var(--orange-light)';
+      return `
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+        <div style="flex:1;min-width:0;font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre}</div>
+        <div style="font-size:0.75rem;padding:2px 8px;border-radius:12px;background:${colorLight};color:${color};font-weight:600;flex-shrink:0;">${etiqueta}</div>
+      </div>`;
+    }).join('');
+  }
 }
 
 // ── HELPERS ──
