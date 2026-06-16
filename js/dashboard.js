@@ -12,6 +12,27 @@ async function loadDashboard() {
     const pro   = comercios.filter(c => c.plan_suscripcion === 'pro').length;
     const multi = comercios.filter(c => c.plan_suscripcion === 'multi').length;
 
+    const ahora = new Date();
+    const hace24h = new Date(ahora - 86400000);
+    const hace7d  = new Date(ahora - 7 * 86400000);
+    const hace30d = new Date(ahora - 30 * 86400000);
+    const en7d    = new Date(ahora.getTime() + 7 * 86400000);
+
+    const pubs = pubSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const pubs24h = pubs.filter(p => p.timestamp?.toDate() > hace24h).length;
+
+    const comNuevos7d = comercios.filter(c => c.creado_en?.toDate() > hace7d).length;
+    const vecNuevos7d = vecSnap.docs.filter(d => d.data().creado_en?.toDate() > hace7d).length;
+
+    const vencen7d = comercios.filter(c => {
+      if (!c.plan_hasta || (c.plan_suscripcion || 'free') === 'free') return false;
+      const d = c.plan_hasta.toDate();
+      return d > ahora && d <= en7d;
+    }).length;
+
+    const activos30dIds = new Set(pubs.filter(p => p.timestamp?.toDate() > hace30d).map(p => p.comercio_id));
+    const inactivos30d = comercios.filter(c => !activos30dIds.has(c.id)).length;
+
     document.getElementById('kpi-comercios').textContent     = comercios.length;
     document.getElementById('kpi-comercios-sub').textContent = `${pro} Pro · ${multi} Multi · ${free} Free`;
     document.getElementById('kpi-vecinos').textContent       = vecSnap.size;
@@ -20,6 +41,15 @@ async function loadDashboard() {
     document.getElementById('kpi-pubs-sub').textContent      = 'Total publicaciones';
     document.getElementById('kpi-planes').textContent        = pro + multi;
     document.getElementById('kpi-planes-sub').textContent    = `${pro} Pro · ${multi} Multi-Barrio`;
+
+    document.getElementById('kpi-pubs24h').textContent        = pubs24h;
+    document.getElementById('kpi-pubs24h-sub').textContent    = 'Últimas 24 horas';
+    document.getElementById('kpi-nuevos7d').textContent       = comNuevos7d + vecNuevos7d;
+    document.getElementById('kpi-nuevos7d-sub').textContent   = `${comNuevos7d} comercios · ${vecNuevos7d} vecinos`;
+    document.getElementById('kpi-vencen7d').textContent       = vencen7d;
+    document.getElementById('kpi-vencen7d-sub').textContent   = vencen7d > 0 ? 'Revisar en finanzas' : 'Sin vencimientos próximos';
+    document.getElementById('kpi-inactivos30d').textContent   = inactivos30d;
+    document.getElementById('kpi-inactivos30d-sub').textContent = 'Sin publicar en 30+ días';
 
     // Gráfica dona
     const ctx = document.getElementById('chart-planes').getContext('2d');
@@ -65,9 +95,9 @@ async function loadDashboard() {
       </div>`).join('') || '<div class="empty">Sin comercios</div>';
 
     // Recientes publicaciones
-    const pubs = pubSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const pubsRecientes = [...pubs]
       .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).slice(0, 5);
-    document.getElementById('recientes-pubs').innerHTML = pubs.map(p => `
+    document.getElementById('recientes-pubs').innerHTML = pubsRecientes.map(p => `
       <div class="recent-item">
         <div class="recent-avatar" style="background:var(--green-light);color:var(--green)">${(p.nombre_comercio || '?')[0].toUpperCase()}</div>
         <div><div class="recent-name">${p.titulo || '—'}</div><div class="recent-meta">${p.nombre_comercio || ''}</div></div>
