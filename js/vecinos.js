@@ -10,15 +10,10 @@ async function loadVecinos() {
     const registrados = todos
       .filter(v => v.email)
       .sort((a, b) => (b.creado_en?.seconds || 0) - (a.creado_en?.seconds || 0));
-    const anonimos = todos.filter(v => !v.email);
-
-    const conToken = registrados.filter(v => v.fcm_token).length;
 
     el.innerHTML = `
-      <div style="padding:8px 20px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);display:flex;gap:16px;">
-        <span>${registrados.length} vecino${registrados.length !== 1 ? 's' : ''} registrado${registrados.length !== 1 ? 's' : ''}</span>
-        <span style="color:var(--text-2)">● ${anonimos.length} anónimo${anonimos.length !== 1 ? 's' : ''}</span>
-        <span style="color:var(--green)">● ${conToken} con notificaciones activas</span>
+      <div style="padding:8px 20px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);">
+        <span>${registrados.length} vecino${registrados.length !== 1 ? 's' : ''}</span>
       </div>
       ${registrados.length === 0 ? '<div class="empty">Sin vecinos registrados</div>' : `
       <table>
