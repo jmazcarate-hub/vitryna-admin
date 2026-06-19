@@ -304,19 +304,19 @@ async function renovarPlanComercio() {
             style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg);">
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          <button onclick="this.closest('div[style]').dataset.res='con'" class="btn-primary" style="padding:11px;">Renovar con factura</button>
-          <button onclick="this.closest('div[style]').dataset.res='sin'" class="btn-secondary" style="padding:11px;">Renovar sin factura</button>
-          <button onclick="this.closest('div[style]').dataset.res='piloto'" class="btn-secondary" style="padding:11px;border-color:var(--orange);color:var(--orange);">🚀 Piloto hasta 31 Dic 2026</button>
-          <button onclick="this.closest('div[style]').dataset.res='cancel'" class="btn-secondary" style="padding:11px;">Cancelar</button>
+          <button data-res="con" class="btn-primary" style="padding:11px;">Renovar con factura</button>
+          <button data-res="sin" class="btn-secondary" style="padding:11px;">Renovar sin factura</button>
+          <button data-res="piloto" class="btn-secondary" style="padding:11px;border-color:var(--orange);color:var(--orange);">🚀 Piloto hasta 31 Dic 2026</button>
+          <button data-res="cancel" class="btn-secondary" style="padding:11px;">Cancelar</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
-    overlay.querySelector('div[style]').addEventListener('click', e => {
-      const res = overlay.querySelector('div[style]').dataset.res;
-      if (!res) return;
+    overlay.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-res]');
+      if (!btn) return;
       const importe = parseFloat(document.getElementById('renovar-importe')?.value) || 0;
       document.body.removeChild(overlay);
-      resolve({ opcion: res, importe });
+      resolve({ opcion: btn.dataset.res, importe });
     });
   });
 
