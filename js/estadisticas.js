@@ -116,21 +116,19 @@ async function cargarGraficaEngagement() {
     d.setDate(d.getDate() - i);
     fechas.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
   }
+  const fechaSet = new Set(fechas);
 
-  const pubsSnap = await db.collection('Publicaciones').get();
+  // Una sola collectionGroup query en lugar de N+1 queries (una por publicación)
+  const statsSnap = await db.collectionGroup('stats_diarias').get();
   const mapaVistas = {};
   const mapaClics  = {};
 
-  await Promise.all(pubsSnap.docs.map(async pubDoc => {
-    const statsSnap = await db.collection('Publicaciones').doc(pubDoc.id)
-      .collection('stats_diarias').get();
-    statsSnap.docs.forEach(s => {
-      if (!fechas.includes(s.id)) return;
-      const d = s.data();
-      mapaVistas[s.id] = (mapaVistas[s.id] || 0) + (d.vistas || 0);
-      mapaClics[s.id]  = (mapaClics[s.id]  || 0) + (d.clics  || 0);
-    });
-  }));
+  statsSnap.docs.forEach(s => {
+    if (!fechaSet.has(s.id)) return;
+    const d = s.data();
+    mapaVistas[s.id] = (mapaVistas[s.id] || 0) + (d.vistas || 0);
+    mapaClics[s.id]  = (mapaClics[s.id]  || 0) + (d.clics  || 0);
+  });
 
   const labels = fechas.map(f => `${f.slice(8)}/${f.slice(5,7)}`);  // DD/MM
   const vistas = fechas.map(f => mapaVistas[f] || 0);

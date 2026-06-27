@@ -6,12 +6,21 @@ async function loadComercios() {
   try {
     const snap = await db.collection('comercios').orderBy('creado_en', 'desc').get();
     todosComercios = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Leer amigos en batches de 30 (límite whereIn) en lugar de N queries individuales
+    const ids = todosComercios.map(c => c.id);
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
     const usuariosSnaps = await Promise.all(
-      todosComercios.map(c => db.collection('usuarios').doc(c.id).get())
+      chunks.map(chunk =>
+        db.collection('usuarios').where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get()
+      )
     );
-    usuariosSnaps.forEach((uSnap, i) => {
-      todosComercios[i].seguidos_count = (uSnap.data()?.amigos || []).length;
-    });
+    const seguidosMap = {};
+    usuariosSnaps.forEach(s => s.docs.forEach(doc => {
+      seguidosMap[doc.id] = (doc.data()?.amigos || []).length;
+    }));
+    todosComercios.forEach(c => { c.seguidos_count = seguidosMap[c.id] || 0; });
     renderComercios();
     if (!document.getElementById('search-comercios')._bound) {
       document.getElementById('search-comercios').addEventListener('input', renderComercios);
@@ -287,7 +296,6 @@ async function renovarPlanComercio() {
     return;
   }
 
-  const precioDefault = c.plan_suscripcion === 'pro' ? '19.90' : '15.98';
   const planNombre = c.plan_suscripcion === 'pro' ? 'Escaparate Pro' : 'Multi-Barrio';
 
   // Mostrar opciones de renovación inline
@@ -298,14 +306,8 @@ async function renovarPlanComercio() {
       <div style="background:var(--surface);border-radius:16px;padding:24px;width:360px;max-width:90vw;">
         <div style="font-size:1rem;font-weight:600;margin-bottom:4px;">Renovar plan</div>
         <div style="font-size:0.83rem;color:var(--text-2);margin-bottom:16px;">${c.nombre_comercio} · ${planNombre}</div>
-        <div style="margin-bottom:12px;">
-          <label style="font-size:0.82rem;font-weight:500;">Importe (€)</label>
-          <input type="number" id="renovar-importe" value="${precioDefault}" step="0.01" min="0"
-            style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg);">
-        </div>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          <button data-res="con" class="btn-primary" style="padding:11px;">Renovar con factura</button>
-          <button data-res="sin" class="btn-secondary" style="padding:11px;">Renovar sin factura</button>
+          <button data-res="renovar" class="btn-primary" style="padding:11px;">Renovar (+30 días)</button>
           <button data-res="piloto" class="btn-secondary" style="padding:11px;border-color:var(--orange);color:var(--orange);">🚀 Piloto hasta 31 Dic 2026</button>
           <button data-res="cancel" class="btn-secondary" style="padding:11px;">Cancelar</button>
         </div>
@@ -314,16 +316,15 @@ async function renovarPlanComercio() {
     overlay.addEventListener('click', e => {
       const btn = e.target.closest('button[data-res]');
       if (!btn) return;
-      const importe = parseFloat(document.getElementById('renovar-importe')?.value) || 0;
       document.body.removeChild(overlay);
-      resolve({ opcion: btn.dataset.res, importe });
+      resolve(btn.dataset.res);
     });
   });
 
-  if (!opcion || opcion.opcion === 'cancel') return;
+  if (!opcion || opcion === 'cancel') return;
 
   try {
-    if (opcion.opcion === 'piloto') {
+    if (opcion === 'piloto') {
       const hasta = new Date('2026-12-31T23:59:59Z');
       await db.collection('comercios').doc(comercioModalId).update({
         plan_hasta: firebase.firestore.Timestamp.fromDate(hasta),
@@ -344,11 +345,7 @@ async function renovarPlanComercio() {
       });
       const idx = todosComercios.findIndex(x => x.id === comercioModalId);
       if (idx >= 0) todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(nuevaHasta);
-
-      if (opcion.opcion === 'con' && opcion.importe > 0) {
-        await generarFacturaAdmin(comercioModalId, c, `Renovación Plan ${planNombre} — 1 mes`, opcion.importe);
-      }
-      toast(opcion.opcion === 'con' ? '+30 días añadidos y factura generada' : '+30 días añadidos al plan', 'success');
+      toast('+30 días añadidos al plan', 'success');
     }
     cerrarModalComercio();
     renderComercios();
@@ -454,36 +451,6 @@ async function enviarEmailRetencion(id, btn) {
   }
 }
 
-async function generarFacturaAdmin(comercioId, comercio, concepto, importeTotal) {
-  // Leer datos del emisor y contador de facturas
-  const [emisorDoc, facturacionDoc, paramsDoc] = await Promise.all([
-    db.collection('config').doc('emisor').get(),
-    db.collection('config').doc('facturacion').get(),
-    db.collection('config').doc('parametros').get(),
-  ]);
-  const emisor   = emisorDoc.data() || {};
-  const facData  = facturacionDoc.data() || {};
-  const params   = paramsDoc.data() || {};
-  const ivaPct   = emisor.iva || params.iva || 21;
-  const anio     = new Date().getFullYear();
-  const contador = (facData.anio === anio ? (facData.contador || 0) : 0) + 1;
-  const numero   = `${anio}-${String(contador).padStart(4, '0')}`;
-
-  await db.collection('config').doc('facturacion').set({ anio, contador }, { merge: true });
-
-  await db.collection('facturas').add({
-    numero,
-    fecha: firebase.firestore.Timestamp.fromDate(new Date()),
-    comercio_id: comercioId,
-    nombre_comercio: comercio.nombre_comercio || '',
-    concepto,
-    importe_total: importeTotal,
-    iva_pct: ivaPct,
-    url_pdf: null,
-    creado_en: firebase.firestore.FieldValue.serverTimestamp(),
-    origen: 'admin_web',
-  });
-}
 
 async function eliminarComercioModal() {
   if (!comercioModalId) return;
