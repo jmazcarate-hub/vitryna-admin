@@ -26,10 +26,6 @@ async function loadConfig() {
             <div class="config-field-info"><div class="config-field-label">Radio máximo del feed (km)</div><div class="config-field-desc">Distancia máxima que puede seleccionar un vecino en el slider</div></div>
             <input type="number" class="config-input" id="cfg-radio" value="${p.radio_max_km ?? 3}" min="0.5" max="20" step="0.5">
           </div>
-          <div class="config-field">
-            <div class="config-field-info"><div class="config-field-label">Modo arranque</div><div class="config-field-desc">Muestra contenido antiguo para que el feed no aparezca vacío en el lanzamiento</div></div>
-            <label class="toggle"><input type="checkbox" id="cfg-modo-arranque" ${p.modo_arranque ? 'checked' : ''}><span class="toggle-slider"></span></label>
-          </div>
         </div>
       </div>
 
@@ -154,7 +150,6 @@ async function guardarConfig() {
       limite_pubs_free:      parseInt(document.getElementById('cfg-limite-free').value) || 2,
       dias_vida_publicacion: parseInt(document.getElementById('cfg-dias-vida').value) || 7,
       radio_max_km:          parseFloat(document.getElementById('cfg-radio').value) || 3,
-      modo_arranque:         document.getElementById('cfg-modo-arranque').checked,
       precio_plan_pro:       parseFloat(document.getElementById('cfg-precio-pro').value) || 19.90,
       precio_plan_multi:     parseFloat(document.getElementById('cfg-precio-multi').value) || 15.98,
       precio_boost4h_5:      parseFloat(document.getElementById('cfg-b4h-5').value) || 5.90,
