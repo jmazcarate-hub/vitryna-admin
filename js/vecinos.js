@@ -1,30 +1,54 @@
-const VECINOS_LIMITE = 500;
+const VECINOS_POR_PAGINA = 50;
 
-async function loadVecinos() {
+// Pila de cursores: [undefined, doc1, doc2, ...] donde undefined = primera página
+let _vecinosCursores = [undefined];
+let _vecinosPagina   = 0;
+
+async function loadVecinos(pagina = 0) {
+  _vecinosPagina = pagina;
   const el = document.getElementById('tabla-vecinos');
   el.innerHTML = '<div class="spinner"></div>';
   try {
-    // Índice compuesto requerido en Firestore: usuarios → rol ASC + creado_en DESC
-    const snap = await db.collection('usuarios')
+    // Índice compuesto en Firestore: usuarios → rol ASC + creado_en DESC
+    let query = db.collection('usuarios')
       .where('rol', '==', 'vecino')
       .orderBy('creado_en', 'desc')
-      .limit(VECINOS_LIMITE)
-      .get();
+      .limit(VECINOS_POR_PAGINA + 1); // +1 para detectar si hay página siguiente
 
-    const registrados = snap.docs
+    const cursor = _vecinosCursores[pagina];
+    if (cursor) query = query.startAfter(cursor);
+
+    const snap = await query.get();
+    const haysiguiente = snap.size > VECINOS_POR_PAGINA;
+    const docs = haysiguiente ? snap.docs.slice(0, VECINOS_POR_PAGINA) : snap.docs;
+
+    // Guardar cursor de la siguiente página
+    if (haysiguiente) {
+      _vecinosCursores[pagina + 1] = docs[docs.length - 1];
+    } else {
+      _vecinosCursores = _vecinosCursores.slice(0, pagina + 1); // descartar páginas inválidas
+    }
+
+    const vecinos = docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(v => v.email);
 
-    const hayMas = snap.size === VECINOS_LIMITE;
+    const desde = pagina * VECINOS_POR_PAGINA + 1;
+    const hasta = desde + vecinos.length - 1;
 
     el.innerHTML = `
-      <div style="padding:8px 20px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);">
-        <span>${registrados.length} vecino${registrados.length !== 1 ? 's' : ''}${hayMas ? ` (mostrando los ${VECINOS_LIMITE} más recientes)` : ''}</span>
+      <div style="padding:8px 20px;display:flex;justify-content:space-between;align-items:center;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);">
+        <span>${vecinos.length === 0 ? 'Sin vecinos' : `Vecinos ${desde}–${hasta}`}</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-sm" onclick="loadVecinos(${pagina - 1})" ${pagina === 0 ? 'disabled' : ''}>← Anterior</button>
+          <button class="btn-sm" onclick="loadVecinos(${pagina + 1})" ${!haysiguiente ? 'disabled' : ''}>Siguiente →</button>
+        </div>
       </div>
-      ${registrados.length === 0 ? '<div class="empty">Sin vecinos registrados</div>' : `
-      <table>
+      ${vecinos.length === 0
+        ? '<div class="empty">Sin vecinos registrados</div>'
+        : `<table>
         <thead><tr><th>Email</th><th>Amigos</th><th>Notificaciones push</th><th>Registro</th><th></th></tr></thead>
-        <tbody>${registrados.map(v => `<tr>
+        <tbody>${vecinos.map(v => `<tr>
           <td>${v.email}</td>
           <td>${(v.amigos || []).length}</td>
           <td>${v.fcm_token
@@ -47,7 +71,9 @@ async function eliminarVecino(uid, email) {
     const fn = firebase.app().functions('europe-west1').httpsCallable('eliminarVecinoCompleto');
     await fn({ vecinoId: uid });
     toast('Vecino eliminado correctamente', 'success');
-    loadVecinos();
+    // Resetear cursores y volver a la primera página
+    _vecinosCursores = [undefined];
+    loadVecinos(0);
   } catch (e) {
     console.error('Error eliminando vecino:', e);
     toast('Error al eliminar: ' + (e.message || e), 'error');
