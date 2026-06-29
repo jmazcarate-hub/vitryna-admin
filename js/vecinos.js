@@ -1,19 +1,25 @@
+const VECINOS_LIMITE = 500;
+
 async function loadVecinos() {
   const el = document.getElementById('tabla-vecinos');
   el.innerHTML = '<div class="spinner"></div>';
   try {
-    const snap = await db.collection('usuarios').limit(2000).get();
-    const todos = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(v => v.rol !== 'comercio' && v.rol !== 'admin');
+    // Índice compuesto requerido en Firestore: usuarios → rol ASC + creado_en DESC
+    const snap = await db.collection('usuarios')
+      .where('rol', '==', 'vecino')
+      .orderBy('creado_en', 'desc')
+      .limit(VECINOS_LIMITE)
+      .get();
 
-    const registrados = todos
-      .filter(v => v.email)
-      .sort((a, b) => (b.creado_en?.seconds || 0) - (a.creado_en?.seconds || 0));
+    const registrados = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(v => v.email);
+
+    const hayMas = snap.size === VECINOS_LIMITE;
 
     el.innerHTML = `
       <div style="padding:8px 20px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);">
-        <span>${registrados.length} vecino${registrados.length !== 1 ? 's' : ''}</span>
+        <span>${registrados.length} vecino${registrados.length !== 1 ? 's' : ''}${hayMas ? ` (mostrando los ${VECINOS_LIMITE} más recientes)` : ''}</span>
       </div>
       ${registrados.length === 0 ? '<div class="empty">Sin vecinos registrados</div>' : `
       <table>
