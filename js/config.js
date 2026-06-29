@@ -85,10 +85,19 @@ async function loadConfig() {
       </div>
 
       <div class="config-section" style="margin-bottom:32px;">
-        <div class="config-section-title">Barrios activos</div>
+        <div class="config-section-title">Poblaciones y barrios</div>
         <div class="config-section-desc">
-          Lista de barrios disponibles en la app. Se actualiza automáticamente cuando un comercio se registra,
-          pero puedes añadir barrios aquí para tenerlos listos antes de que lleguen los primeros comercios.
+          Los barrios están organizados por población. Selecciona una población para ver y editar sus barrios.
+          Se actualizan automáticamente cuando un comercio se registra.
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+          <select id="cfg-poblacion-sel" onchange="cambiarPoblacion()"
+            style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--surface);min-width:180px;">
+          </select>
+          <input type="text" id="cfg-poblacion-nueva" placeholder="Nueva población..."
+            style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.88rem;background:var(--surface);width:180px;"
+            onkeydown="if(event.key==='Enter') añadirPoblacion()">
+          <button class="btn-secondary" onclick="añadirPoblacion()" style="padding:7px 14px;">+ Añadir población</button>
         </div>
         <div id="barrios-chips" style="display:flex;flex-wrap:wrap;gap:8px;min-height:38px;margin-bottom:14px;"></div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -173,16 +182,42 @@ async function guardarConfig() {
   } catch (e) { toast('Error guardando configuración', 'error'); }
 }
 
-// ── BARRIOS ACTIVOS ──────────────────────────────────────────────────────────
+// ── POBLACIONES Y BARRIOS ────────────────────────────────────────────────────
 
 let _barrios = [];
+let _poblaciones = [];
+let _poblacionActual = '';
 
 async function cargarBarrios() {
-  const el = document.getElementById('barrios-chips');
-  if (!el) return;
   try {
     const doc = await db.collection('config').doc('parametros').get();
-    _barrios = [...(doc.data()?.barrios_activos || [])].sort((a, b) => a.localeCompare(b, 'es'));
+    _poblaciones = [...(doc.data()?.poblaciones_activas || [])].sort((a, b) => a.localeCompare(b, 'es'));
+    const sel = document.getElementById('cfg-poblacion-sel');
+    if (!sel) return;
+    sel.innerHTML = _poblaciones.length === 0
+      ? '<option value="">Sin poblaciones</option>'
+      : _poblaciones.map(p => `<option value="${p}">${p}</option>`).join('');
+    _poblacionActual = _poblaciones[0] || '';
+    await _cargarBarriosDePoblacion(_poblacionActual);
+  } catch(e) {
+    const el = document.getElementById('barrios-chips');
+    if (el) el.innerHTML = '<span style="color:var(--red);font-size:0.82rem;">Error cargando barrios</span>';
+  }
+}
+
+async function cambiarPoblacion() {
+  const sel = document.getElementById('cfg-poblacion-sel');
+  _poblacionActual = sel?.value || '';
+  await _cargarBarriosDePoblacion(_poblacionActual);
+}
+
+async function _cargarBarriosDePoblacion(poblacion) {
+  const el = document.getElementById('barrios-chips');
+  if (!el) return;
+  if (!poblacion) { _barrios = []; renderBarrios(); return; }
+  try {
+    const doc = await db.collection('config').doc(poblacion).get();
+    _barrios = [...(doc.data()?.barrios || [])].sort((a, b) => a.localeCompare(b, 'es'));
     renderBarrios();
   } catch(e) {
     el.innerHTML = '<span style="color:var(--red);font-size:0.82rem;">Error cargando barrios</span>';
@@ -193,7 +228,7 @@ function renderBarrios() {
   const el = document.getElementById('barrios-chips');
   if (!el) return;
   if (_barrios.length === 0) {
-    el.innerHTML = '<span style="font-size:0.83rem;color:var(--text-3);">Sin barrios registrados todavía.</span>';
+    el.innerHTML = '<span style="font-size:0.83rem;color:var(--text-3);">Sin barrios para esta población todavía.</span>';
     return;
   }
   el.innerHTML = _barrios.map(b => `
@@ -206,31 +241,53 @@ function renderBarrios() {
     </span>`).join('');
 }
 
+async function añadirPoblacion() {
+  const input = document.getElementById('cfg-poblacion-nueva');
+  const poblacion = input.value.trim();
+  if (!poblacion) { toast('Escribe el nombre de la población', 'error'); return; }
+  if (_poblaciones.some(p => p.toLowerCase() === poblacion.toLowerCase())) {
+    toast('Esa población ya existe', 'error'); return;
+  }
+  try {
+    await db.collection('config').doc('parametros').update({
+      poblaciones_activas: firebase.firestore.FieldValue.arrayUnion(poblacion),
+    });
+    await db.collection('config').doc(poblacion).set({ barrios: [] }, { merge: true });
+    _poblaciones = [..._poblaciones, poblacion].sort((a, b) => a.localeCompare(b, 'es'));
+    input.value = '';
+    const sel = document.getElementById('cfg-poblacion-sel');
+    sel.innerHTML = _poblaciones.map(p => `<option value="${p}"${p===poblacion?' selected':''}>${p}</option>`).join('');
+    _poblacionActual = poblacion;
+    _barrios = [];
+    renderBarrios();
+    toast(`Población "${poblacion}" añadida`, 'success');
+  } catch(e) { toast('Error al guardar', 'error'); }
+}
+
 async function añadirBarrio() {
+  if (!_poblacionActual) { toast('Selecciona una población primero', 'error'); return; }
   const input = document.getElementById('cfg-barrio-nuevo');
-  const msg = document.getElementById('cfg-barrios-msg');
   const barrio = input.value.trim();
   if (!barrio) { toast('Escribe el nombre del barrio', 'error'); return; }
   if (_barrios.some(b => b.toLowerCase() === barrio.toLowerCase())) {
     toast('Ese barrio ya está en la lista', 'error'); return;
   }
   try {
-    await db.collection('config').doc('parametros').update({
-      barrios_activos: firebase.firestore.FieldValue.arrayUnion(barrio),
+    await db.collection('config').doc(_poblacionActual).update({
+      barrios: firebase.firestore.FieldValue.arrayUnion(barrio),
     });
     _barrios = [..._barrios, barrio].sort((a, b) => a.localeCompare(b, 'es'));
     input.value = '';
-    msg.innerHTML = '';
     renderBarrios();
-    toast(`Barrio "${barrio}" añadido`, 'success');
+    toast(`Barrio "${barrio}" añadido a ${_poblacionActual}`, 'success');
   } catch(e) { toast('Error al guardar', 'error'); }
 }
 
 async function eliminarBarrio(barrio) {
-  if (!confirm(`¿Eliminar "${barrio}" de la lista de barrios activos?`)) return;
+  if (!confirm(`¿Eliminar "${barrio}" de ${_poblacionActual}?`)) return;
   try {
-    await db.collection('config').doc('parametros').update({
-      barrios_activos: firebase.firestore.FieldValue.arrayRemove(barrio),
+    await db.collection('config').doc(_poblacionActual).update({
+      barrios: firebase.firestore.FieldValue.arrayRemove(barrio),
     });
     _barrios = _barrios.filter(b => b !== barrio);
     renderBarrios();
