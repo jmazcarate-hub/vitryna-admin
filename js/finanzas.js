@@ -1,11 +1,17 @@
 async function loadFinanzas() {
   const el = document.getElementById('finanzas-content');
   try {
-    const snap = await db.collection('comercios').get();
+    const [snap, paramSnap] = await Promise.all([
+      db.collection('comercios').get(),
+      db.collection('config').doc('parametros').get(),
+    ]);
+    const paramData   = paramSnap.data() || {};
+    const precioPro   = paramData.precio_plan_pro   || 19.90;
+    const precioMulti = paramData.precio_plan_multi  || 15.98;
     const coms  = snap.docs.map(d => d.data());
     const pro   = coms.filter(c => c.plan_suscripcion === 'pro').length;
     const multi = coms.filter(c => c.plan_suscripcion === 'multi').length;
-    const mrr   = (pro * 19.90 + multi * 15.98).toFixed(2);
+    const mrr   = (pro * precioPro + multi * precioMulti).toFixed(2);
     const arr   = (mrr * 12).toFixed(2);
 
     // Leer contador de facturas

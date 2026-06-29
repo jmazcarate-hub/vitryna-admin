@@ -2,11 +2,15 @@ let chartPlanes = null;
 
 async function loadDashboard() {
   try {
-    const [comSnap, vecSnap, pubSnap] = await Promise.all([
+    const [comSnap, vecSnap, pubSnap, paramSnap] = await Promise.all([
       db.collection('comercios').get(),
       db.collection('usuarios').where('rol', '==', 'vecino').get(),
       db.collection('Publicaciones').get(),
+      db.collection('config').doc('parametros').get(),
     ]);
+    const paramData   = paramSnap.data() || {};
+    const precioPro   = paramData.precio_plan_pro   || 19.90;
+    const precioMulti = paramData.precio_plan_multi  || 15.98;
     const comercios = comSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const free  = comercios.filter(c => (c.plan_suscripcion || 'free') === 'free').length;
     const pro   = comercios.filter(c => c.plan_suscripcion === 'pro').length;
@@ -68,7 +72,7 @@ async function loadDashboard() {
     });
 
     // Detalle planes + MRR
-    const mrr = (pro * 19.90 + multi * 15.98).toFixed(2);
+    const mrr = (pro * precioPro + multi * precioMulti).toFixed(2);
     document.getElementById('planes-detalle').innerHTML = `
       <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--blue-light);border-radius:10px;">

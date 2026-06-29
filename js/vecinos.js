@@ -2,7 +2,7 @@ async function loadVecinos() {
   const el = document.getElementById('tabla-vecinos');
   el.innerHTML = '<div class="spinner"></div>';
   try {
-    const snap = await db.collection('usuarios').get();
+    const snap = await db.collection('usuarios').limit(2000).get();
     const todos = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(v => v.rol !== 'comercio' && v.rol !== 'admin');

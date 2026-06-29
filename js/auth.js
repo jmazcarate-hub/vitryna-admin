@@ -58,7 +58,17 @@ document.getElementById('btn-login').addEventListener('click', async () => {
       throw new Error('Esta cuenta no tiene permisos de administrador.');
     }
   } catch (e) {
-    err.textContent = e.message.includes('permisos') ? e.message : 'Email o contraseña incorrectos.';
+    const esCredenciales = e.code && (
+      e.code.includes('wrong-password') ||
+      e.code.includes('user-not-found') ||
+      e.code.includes('invalid-credential') ||
+      e.code.includes('invalid-email')
+    );
+    err.textContent = e.message.includes('permisos')
+      ? e.message
+      : esCredenciales
+        ? 'Email o contraseña incorrectos.'
+        : 'Error de conexión. Comprueba tu red e inténtalo de nuevo.';
     err.style.display = 'block';
     btn.textContent = 'Entrar'; btn.disabled = false;
   }
