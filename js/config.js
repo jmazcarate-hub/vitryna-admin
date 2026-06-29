@@ -84,7 +84,6 @@ async function loadConfig() {
         <div class="config-section-title">Poblaciones y barrios</div>
         <div class="config-section-desc">
           Los barrios están organizados por población. Selecciona una población para ver y editar sus barrios.
-          Se actualizan automáticamente cuando un comercio se registra.
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
           <select id="cfg-poblacion-sel" onchange="cambiarPoblacion()"
