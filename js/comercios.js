@@ -329,7 +329,6 @@ async function renovarPlanComercio() {
       await db.collection('comercios').doc(comercioModalId).update({
         plan_hasta: firebase.firestore.Timestamp.fromDate(hasta),
         estado_pago: true,
-        piloto: true,
       });
       const idx = todosComercios.findIndex(x => x.id === comercioModalId);
       if (idx >= 0) todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(hasta);
@@ -359,7 +358,6 @@ async function activarPilotoComercio() {
     await db.collection('comercios').doc(comercioModalId).update({
       plan_hasta: firebase.firestore.Timestamp.fromDate(hasta),
       estado_pago: true,
-      piloto: true,
     });
     const idx = todosComercios.findIndex(c => c.id === comercioModalId);
     if (idx >= 0) todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(hasta);
