@@ -455,6 +455,10 @@ async function enviarEmailRetencion(id, btn) {
 async function eliminarComercioModal() {
   if (!comercioModalId) return;
   const c = todosComercios.find(x => x.id === comercioModalId);
+  if (c?.stripe_subscription_id) {
+    alert(`No se puede eliminar "${c.nombre_comercio}" porque tiene un plan activo en Stripe.\n\nPrimero cancela la suscripción desde el panel de Stripe o desde la ficha del comercio, y una vez cancelada podrás eliminar el comercio.`);
+    return;
+  }
   if (!confirm(`¿Eliminar el comercio "${c?.nombre_comercio}"?\n\nSe eliminarán:\n• Todas sus publicaciones, estadísticas y fotos\n• Su fachada\n• Sus solicitudes\n• Su cuenta de usuario y Auth\n• Se eliminará de la lista de amigos de todos los vecinos\n\nLas facturas se conservan. Esta acción no se puede deshacer.`)) return;
   try {
     const eliminar = firebase.app().functions('europe-west1').httpsCallable('eliminarComercioCompleto');
