@@ -460,6 +460,19 @@
   </div>
 </div>
 
+<!-- MODAL FOTO SPAM (comparación ampliada) -->
+<div class="modal-overlay" id="modal-foto-spam" onclick="if(event.target===this) cerrarFotoSpam()">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-header">
+      <div><div class="modal-title">Comparar publicaciones</div><div class="modal-sub">Míralas en grande para confirmar si son realmente iguales</div></div>
+      <button class="modal-close" onclick="cerrarFotoSpam()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="foto-spam-comparacion" style="display:flex;gap:16px;flex-wrap:wrap;"></div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>

@@ -102,9 +102,13 @@ function detectarIncidenciasSpam() {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
+let ultimasIncidenciasSpam = [];
+
 async function renderSpam() {
   const el = document.getElementById('tabla-spam');
   const incidencias = detectarIncidenciasSpam();
+  incidencias.forEach((inc, idx) => { inc.idx = idx; });
+  ultimasIncidenciasSpam = incidencias;
 
   if (!incidencias.length) {
     el.innerHTML = '<div class="empty">No se han detectado publicaciones sospechosas con estos filtros</div>';
@@ -166,12 +170,37 @@ function renderGrupoComercioSpam(comercioId, grupo) {
     </div>`;
 }
 
-function fotoThumbSpam(pub) {
+function fotoThumbSpam(pub, idx) {
   const src = pub.foto_url || pub.fachada_url || '';
   if (!src) {
     return `<div style="width:44px;height:44px;border-radius:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:0.7rem;">—</div>`;
   }
-  return `<img src="${src}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);">`;
+  return `<img src="${src}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer;" onclick="abrirFotoSpam(${idx})" title="Ver en grande">`;
+}
+
+// ── Lightbox de comparación de fotos ─────────────────────────────────────────
+function abrirFotoSpam(idx) {
+  const inc = ultimasIncidenciasSpam[idx];
+  if (!inc) return;
+  const bloque = (pub, etiqueta) => {
+    const src = pub.foto_url || pub.fachada_url || '';
+    return `
+      <div style="flex:1;min-width:240px;">
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">${etiqueta}</div>
+        ${src
+          ? `<img src="${src}" style="width:100%;border-radius:12px;border:1px solid var(--border);object-fit:cover;max-height:420px;">`
+          : `<div style="width:100%;height:240px;border-radius:12px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text-3);">Sin foto</div>`}
+        <div style="margin-top:8px;font-size:0.85rem;font-weight:500;">${pub.titulo || '—'}</div>
+        <div style="font-size:0.78rem;color:var(--text-3);margin-top:2px;">${formatDate(pub.timestamp)}</div>
+      </div>`;
+  };
+  document.getElementById('foto-spam-comparacion').innerHTML =
+    bloque(inc.anterior, 'Publicación anterior') + bloque(inc.actual, 'Publicación nueva');
+  document.getElementById('modal-foto-spam').classList.add('open');
+}
+
+function cerrarFotoSpam() {
+  document.getElementById('modal-foto-spam').classList.remove('open');
 }
 
 function formatearDiffSpam(min) {
@@ -182,18 +211,18 @@ function formatearDiffSpam(min) {
 }
 
 function renderFilaIncidenciaSpam(inc) {
-  const { anterior, actual, diffMin, similitud, porTiempo, porSimilitud } = inc;
+  const { anterior, actual, diffMin, similitud, porTiempo, porSimilitud, idx } = inc;
   const motivos = [
     porTiempo ? `<span class="badge inactivo">⏱ ${formatearDiffSpam(diffMin)}</span>` : '',
     porSimilitud ? `<span class="badge inactivo">🔁 ${Math.round(similitud * 100)}% similar</span>` : '',
   ].join(' ');
 
   return `<tr>
-    <td>${fotoThumbSpam(anterior)}</td>
+    <td>${fotoThumbSpam(anterior, idx)}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.83rem;">
       ${anterior.titulo || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDate(anterior.timestamp)}</span>
     </td>
-    <td>${fotoThumbSpam(actual)}</td>
+    <td>${fotoThumbSpam(actual, idx)}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.83rem;">
       ${actual.titulo || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDate(actual.timestamp)}</span>
     </td>
