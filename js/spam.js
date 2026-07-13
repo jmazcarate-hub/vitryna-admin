@@ -4,6 +4,15 @@ let umbralMinutosSpam = 30;
 let umbralSimilitudSpam = 0.7;
 const VENTANA_COMPARACION_SPAM = 5; // comparar cada pub contra las N anteriores del mismo comercio
 
+// Fecha + hora:min:seg, para poder ver a simple vista el intervalo entre dos publicaciones
+function formatDateHoraSpam(ts) {
+  if (!ts) return '—';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const fecha = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const hora = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return `${fecha} ${hora}`;
+}
+
 async function loadSpam() {
   const el = document.getElementById('tabla-spam');
   el.innerHTML = '<div class="spinner"></div>';
@@ -191,7 +200,7 @@ function abrirFotoSpam(idx) {
           ? `<img src="${src}" style="width:100%;border-radius:12px;border:1px solid var(--border);object-fit:cover;max-height:420px;">`
           : `<div style="width:100%;height:240px;border-radius:12px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text-3);">Sin foto</div>`}
         <div style="margin-top:8px;font-size:0.85rem;font-weight:500;">${pub.titulo || '—'}</div>
-        <div style="font-size:0.78rem;color:var(--text-3);margin-top:2px;">${formatDate(pub.timestamp)}</div>
+        <div style="font-size:0.78rem;color:var(--text-3);margin-top:2px;">${formatDateHoraSpam(pub.timestamp)}</div>
       </div>`;
   };
   document.getElementById('foto-spam-comparacion').innerHTML =
@@ -220,11 +229,11 @@ function renderFilaIncidenciaSpam(inc) {
   return `<tr>
     <td>${fotoThumbSpam(anterior, idx)}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.83rem;">
-      ${anterior.titulo || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDate(anterior.timestamp)}</span>
+      ${anterior.titulo || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDateHoraSpam(anterior.timestamp)}</span>
     </td>
     <td>${fotoThumbSpam(actual, idx)}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.83rem;">
-      ${actual.titulo || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDate(actual.timestamp)}</span>
+      ${actual.titulo || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDateHoraSpam(actual.timestamp)}</span>
     </td>
     <td>${motivos}</td>
     <td><button class="btn-sm danger" onclick="eliminarPubSpam('${actual.id}', this)">Eliminar nueva</button></td>
