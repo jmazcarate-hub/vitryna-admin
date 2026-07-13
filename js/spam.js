@@ -64,8 +64,11 @@ function tsToMsSpam(ts) {
 
 // ── Detección de incidencias ─────────────────────────────────────────────────
 // Compara cada publicación con las N anteriores del mismo comercio (ordenadas
-// cronológicamente) y marca una incidencia si están muy seguidas en el tiempo
-// o su texto (título + descripción) es muy similar.
+// cronológicamente) y marca una incidencia solo si se cumplen AMBAS condiciones
+// a la vez: están dentro de la ventana de tiempo Y su texto (título+descripción)
+// supera el umbral de similitud. Con OR, una ventana amplia (24h) marcaba
+// como spam cualquier par de publicaciones sin relación entre sí solo por
+// coincidir el mismo día — actividad normal de un comercio activo.
 function detectarIncidenciasSpam() {
   const porComercio = {};
   todasPubsSpam.forEach(p => {
@@ -88,7 +91,7 @@ function detectarIncidenciasSpam() {
         );
         const porTiempo = diffMin <= umbralMinutosSpam;
         const porSimilitud = similitud >= umbralSimilitudSpam;
-        if (porTiempo || porSimilitud) {
+        if (porTiempo && porSimilitud) {
           incidencias.push({ anterior, actual, diffMin, similitud, porTiempo, porSimilitud });
         }
       }
