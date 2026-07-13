@@ -77,6 +77,10 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       Publicaciones
     </a>
+    <a class="nav-item" data-section="spam">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Posible Spam
+    </a>
     <a class="nav-item" data-section="colaboradores">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M9 21V8l7-5v18"/><path d="M9 12h7"/></svg>
       Colaboradores
@@ -235,6 +239,29 @@
           <div class="filter-chip" data-temporal="mes">30 días</div>
         </div>
         <div id="tabla-publicaciones"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- POSIBLE SPAM -->
+    <div class="section" id="section-spam">
+      <div class="table-card">
+        <div class="table-header">
+          <div class="card-title">Posibles publicaciones de spam</div>
+        </div>
+        <div class="filter-bar" id="filtros-spam-tiempo">
+          <span style="font-size:0.75rem;color:var(--text-2);margin-right:4px;">Ventana de tiempo:</span>
+          <div class="filter-chip" data-minutos="5">5 min</div>
+          <div class="filter-chip active" data-minutos="30">30 min</div>
+          <div class="filter-chip" data-minutos="60">1 hora</div>
+          <div class="filter-chip" data-minutos="1440">24 horas</div>
+        </div>
+        <div class="filter-bar" id="filtros-spam-similitud" style="border-top:1px solid var(--border);padding-top:8px;">
+          <span style="font-size:0.75rem;color:var(--text-2);margin-right:4px;">Similitud mínima:</span>
+          <div class="filter-chip" data-similitud="0.5">50%</div>
+          <div class="filter-chip active" data-similitud="0.7">70%</div>
+          <div class="filter-chip" data-similitud="0.9">90%</div>
+        </div>
+        <div id="tabla-spam"><div class="spinner"></div></div>
       </div>
     </div>
 
