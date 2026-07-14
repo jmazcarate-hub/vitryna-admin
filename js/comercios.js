@@ -262,13 +262,20 @@ async function ajustarBoosts(signo) {
 async function cambiarPlanComercio(plan) {
   if (!comercioModalId || !confirm(`¿Cambiar el plan a ${plan.toUpperCase()}?`)) return;
   const c = todosComercios.find(x => x.id === comercioModalId);
-  // Bloquear si tiene Stripe activo
-  if (c && c.ultimo_pago_stripe && (c.plan_suscripcion === 'pro' || c.plan_suscripcion === 'multi')) {
+  // Bloquear si tiene Stripe activo (pago real o reserva/suscripción en curso)
+  if (c && (c.ultimo_pago_stripe || c.stripe_subscription_id) && (c.plan_suscripcion === 'pro' || c.plan_suscripcion === 'multi')) {
     toast('Comercio en ciclo Stripe — usa el dashboard de Stripe', 'error');
     return;
   }
   try {
-    const hasta = plan === 'free' ? null : new Date(Date.now() + 30 * 86400000);
+    // Igual que en la renovación por Stripe: sumar 30 días sobre plan_hasta
+    // actual si sigue vigente, para no perder días.
+    let hasta = null;
+    if (plan !== 'free') {
+      const ph = c?.plan_hasta ? (c.plan_hasta.toDate ? c.plan_hasta.toDate() : new Date(c.plan_hasta)) : new Date();
+      const base = ph > new Date() ? ph : new Date();
+      hasta = new Date(base.getTime() + 30 * 86400000);
+    }
     await db.collection('comercios').doc(comercioModalId).update({
       plan_suscripcion: plan,
       estado_pago: plan !== 'free',
@@ -290,8 +297,8 @@ async function renovarPlanComercio() {
   const c = todosComercios.find(x => x.id === comercioModalId);
   if (!c) return;
 
-  // Bloquear si tiene Stripe activo
-  if (c.ultimo_pago_stripe && (c.plan_suscripcion === 'pro' || c.plan_suscripcion === 'multi')) {
+  // Bloquear si tiene Stripe activo (pago real o reserva/suscripción en curso)
+  if ((c.ultimo_pago_stripe || c.stripe_subscription_id) && (c.plan_suscripcion === 'pro' || c.plan_suscripcion === 'multi')) {
     toast('Comercio en ciclo Stripe — usa el dashboard de Stripe', 'error');
     return;
   }
@@ -353,6 +360,12 @@ async function renovarPlanComercio() {
 
 async function activarPilotoComercio() {
   if (!comercioModalId || !confirm('¿Activar plan piloto hasta el 31 de Diciembre de 2026?')) return;
+  const c = todosComercios.find(x => x.id === comercioModalId);
+  // Bloquear si tiene Stripe activo (pago real o reserva/suscripción en curso)
+  if (c && (c.ultimo_pago_stripe || c.stripe_subscription_id) && (c.plan_suscripcion === 'pro' || c.plan_suscripcion === 'multi')) {
+    toast('Comercio en ciclo Stripe — usa el dashboard de Stripe', 'error');
+    return;
+  }
   try {
     const hasta = new Date('2026-12-31T23:59:59Z');
     await db.collection('comercios').doc(comercioModalId).update({
