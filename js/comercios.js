@@ -33,6 +33,9 @@ async function loadComercios() {
           if (filtroCom === 'bajas') {
             bajasData = [];
             cargarBajas();
+          } else if (filtroCom === 'retencion') {
+            retencionesData = [];
+            cargarRetenciones();
           } else {
             renderComercios();
           }
@@ -458,6 +461,75 @@ async function enviarEmailRetencion(id, btn) {
   } catch(e) {
     btn.disabled = false;
     btn.textContent = 'Enviar email';
+    toast('Error al enviar: ' + (e.message || e), 'error');
+  }
+}
+
+// ── RETENCIÓN: listado de todos los envíos (uno por cada email enviado) ──────
+
+let retencionesData = [];
+
+async function cargarRetenciones() {
+  const el = document.getElementById('tabla-comercios');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const snap = await db.collection('envios_retencion').orderBy('enviado_en', 'desc').get();
+    retencionesData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderRetenciones();
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Error cargando envíos de retención</div>';
+  }
+}
+
+function renderRetenciones() {
+  const el = document.getElementById('tabla-comercios');
+  if (!retencionesData.length) { el.innerHTML = '<div class="empty">No hay envíos de retención</div>'; return; }
+  const motivoLabels = {
+    precio: 'Precio alto', resultados: 'Sin resultados',
+    tiempo: 'Sin tiempo', canal: 'Otro canal', otro: 'Otro',
+  };
+  el.innerHTML = `
+    <div style="padding:8px 20px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);">
+      ${retencionesData.length} envío${retencionesData.length !== 1 ? 's' : ''}
+    </div>
+    <table>
+      <thead><tr>
+        <th>Comercio</th><th>Enviado</th><th>Motivo</th><th>Respondido</th><th>Acción</th>
+      </tr></thead>
+      <tbody>${retencionesData.map(r => {
+        const motivoTexto = r.motivo ? (motivoLabels[r.motivo] || r.motivo) : '—';
+        return `<tr>
+          <td>
+            <div style="font-weight:500">${r.nombre_comercio || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-2)">${r.email || '—'}</div>
+          </td>
+          <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(r.enviado_en)}</td>
+          <td style="font-size:0.8rem;${r.motivo ? 'color:var(--orange);font-weight:500' : 'color:var(--text-3)'}">
+            ${motivoTexto}
+          </td>
+          <td style="font-size:0.8rem;${r.respondido ? 'color:var(--green)' : 'color:var(--text-3)'}">
+            ${r.respondido ? '✓ ' + formatDate(r.fecha_respuesta) : 'Sin responder'}
+          </td>
+          <td>
+            <button class="btn-sm" onclick="reenviarDesdeRetencion('${r.comercio_id}', this)">Reenviar</button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+async function reenviarDesdeRetencion(comercioId, btn) {
+  if (!confirm('¿Reenviar email de retención a este comercio?')) return;
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('enviarEmailRetencion');
+    await fn({ comercioId });
+    toast('Email de retención enviado', 'success');
+    cargarRetenciones();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Reenviar';
     toast('Error al enviar: ' + (e.message || e), 'error');
   }
 }
