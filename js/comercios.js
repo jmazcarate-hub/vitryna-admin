@@ -431,6 +431,7 @@ function renderBajas() {
           <td><span class="${vi.clase}" style="font-size:0.8rem;">${vi.texto}</span></td>
           <td style="font-size:0.8rem;${c.motivo_baja ? 'color:var(--orange);font-weight:500' : 'color:var(--text-3)'}">
             ${motivoTexto}
+            ${c.motivo_baja && c.fecha_encuesta ? `<div style="font-size:0.72rem;color:var(--text-3);font-weight:400;">${formatDate(c.fecha_encuesta)}</div>` : ''}
           </td>
           <td style="font-size:0.8rem;${yaEnviado ? 'color:var(--green)' : 'color:var(--text-3)'}">
             ${yaEnviado ? '✓ ' + formatDate(c.retencion_enviado) : '—'}
@@ -494,21 +495,32 @@ function renderRetenciones() {
     </div>
     <table>
       <thead><tr>
-        <th>Comercio</th><th>Enviado</th><th>Motivo</th><th>Respondido</th><th>Acción</th>
+        <th>Comercio</th><th>Plan</th><th>Barrio</th>
+        <th>Vence</th><th>Motivo encuesta</th><th>Email enviado</th><th>Acción</th>
       </tr></thead>
       <tbody>${retencionesData.map(r => {
+        // El comercio puede haberse borrado desde el envío; si sigue existiendo,
+        // Plan/Barrio/Vence reflejan su estado actual (no una foto fija del envío)
+        const c = todosComercios.find(x => x.id === r.comercio_id);
+        const plan = c?.plan_suscripcion || '—';
+        const barrio = c?.barrio || r.barrio || '—';
+        const vi = c ? vencInfo(c.plan_hasta) : { texto: '—', clase: '' };
         const motivoTexto = r.motivo ? (motivoLabels[r.motivo] || r.motivo) : '—';
         return `<tr>
           <td>
-            <div style="font-weight:500">${r.nombre_comercio || '—'}</div>
-            <div style="font-size:0.75rem;color:var(--text-2)">${r.email || '—'}</div>
+            <div style="font-weight:500">${r.nombre_comercio || c?.nombre_comercio || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-2)">${r.email || c?.email || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-3)">${c?.telefono || '—'}</div>
           </td>
-          <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(r.enviado_en)}</td>
+          <td>${plan !== '—' ? `<span class="badge ${plan}">${plan.toUpperCase()}</span>` : '—'}</td>
+          <td style="font-size:0.83rem;color:var(--text-2)">${barrio}</td>
+          <td><span class="${vi.clase}" style="font-size:0.8rem;">${vi.texto}</span></td>
           <td style="font-size:0.8rem;${r.motivo ? 'color:var(--orange);font-weight:500' : 'color:var(--text-3)'}">
             ${motivoTexto}
+            ${r.motivo && r.fecha_respuesta ? `<div style="font-size:0.72rem;color:var(--text-3);font-weight:400;">${formatDate(r.fecha_respuesta)}</div>` : ''}
           </td>
-          <td style="font-size:0.8rem;${r.respondido ? 'color:var(--green)' : 'color:var(--text-3)'}">
-            ${r.respondido ? '✓ ' + formatDate(r.fecha_respuesta) : 'Sin responder'}
+          <td style="font-size:0.8rem;color:var(--green);">
+            ✓ ${formatDate(r.enviado_en)}
           </td>
           <td>
             <button class="btn-sm" onclick="reenviarDesdeRetencion('${r.comercio_id}', this)">Reenviar</button>
