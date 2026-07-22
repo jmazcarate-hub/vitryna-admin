@@ -100,7 +100,7 @@ function cargarModulo(nombre) {
     return;
   }
   const s = document.createElement('script');
-  s.src = `js/${nombre}.js`;
+  s.src = `js/${nombre}.js?t=${Date.now()}`;
   s.onload = () => {
     modulosCargados[nombre] = true;
     ejecutarSeccion(nombre);
