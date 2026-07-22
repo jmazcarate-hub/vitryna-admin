@@ -208,7 +208,11 @@ async function cargarRankingActividad() {
   const mapa = {};
   comSnap.docs.forEach(doc => {
     const d = doc.data();
-    mapa[doc.id] = { nombre: d.nombre_comercio || '—', pubs30: 0, ultimaPub: null };
+    mapa[doc.id] = {
+      nombre: d.nombre_comercio || '—', pubs30: 0, ultimaPub: null,
+      rec15: d.recordatorio_15d_enviado?.toDate?.() || null,
+      rec30: d.recordatorio_30d_enviado?.toDate?.() || null,
+    };
   });
 
   pubsSnap.docs.forEach(doc => {
@@ -263,9 +267,13 @@ async function cargarRankingActividad() {
       const etiqueta = dias === null ? 'Nunca' : `hace ${dias}d`;
       const color = dias === null || dias > 30 ? 'var(--red)' : 'var(--orange)';
       const colorLight = dias === null || dias > 30 ? 'var(--red-light)' : 'var(--orange-light)';
+      const ultimoRecordatorio = [c.rec15, c.rec30].filter(Boolean).sort((a, b) => b - a)[0] || null;
       return `
       <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
-        <div style="flex:1;min-width:0;font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre}</div>
+          <div style="font-size:0.72rem;color:var(--text-3);margin-top:2px;">${ultimoRecordatorio ? 'Recordatorio enviado: ' + formatDate(ultimoRecordatorio) : 'Sin recordatorio enviado'}</div>
+        </div>
         <div style="font-size:0.75rem;padding:2px 8px;border-radius:12px;background:${colorLight};color:${color};font-weight:600;flex-shrink:0;">${etiqueta}</div>
       </div>`;
     }).join('');
