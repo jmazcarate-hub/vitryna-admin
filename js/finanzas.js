@@ -1,9 +1,18 @@
 async function loadFinanzas() {
   const el = document.getElementById('finanzas-content');
   try {
-    const [snap, paramSnap] = await Promise.all([
+    const hoy = new Date();
+    const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const inicioVentana6m = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
+
+    const [snap, paramSnap, facturacionDoc, facVentanaSnap] = await Promise.all([
       db.collection('comercios').get(),
       db.collection('config').doc('parametros').get(),
+      db.collection('config').doc('facturacion').get(),
+      db.collection('facturas')
+        .where('fecha', '>=', firebase.firestore.Timestamp.fromDate(inicioVentana6m))
+        .orderBy('fecha', 'asc')
+        .get(),
     ]);
     const paramData   = paramSnap.data() || {};
     const precioPro   = paramData.precio_plan_pro   || 19.90;
@@ -11,17 +20,67 @@ async function loadFinanzas() {
     const coms  = snap.docs.map(d => d.data());
     const pro   = coms.filter(c => c.plan_suscripcion === 'pro').length;
     const multi = coms.filter(c => c.plan_suscripcion === 'multi').length;
-    const mrr   = (pro * precioPro + multi * precioMulti).toFixed(2);
+    const contribPro   = pro * precioPro;
+    const contribMulti = multi * precioMulti;
+    const mrr   = (contribPro + contribMulti).toFixed(2);
     const arr   = (mrr * 12).toFixed(2);
 
     // Leer contador de facturas
-    const facturacionDoc = await db.collection('config').doc('facturacion').get();
     const facData = facturacionDoc.data() || {};
-    const anioActual = new Date().getFullYear();
+    const anioActual = hoy.getFullYear();
     const contadorActual = facData.anio === anioActual ? (facData.contador || 0) : 0;
 
+    // Facturas de los últimos 6 meses, para boosts del mes y evolución del MRR
+    const facturasVentana = facVentanaSnap.docs.map(d => d.data());
+    const fechaDe = f => (f.fecha?.toDate ? f.fecha.toDate() : new Date(f.fecha));
+
+    const boostsMes = facturasVentana.filter(f =>
+      fechaDe(f) >= inicioMesActual && (f.concepto || '').startsWith('Super-Escaparate')
+    );
+    const boostsMesCount   = boostsMes.length;
+    const boostsMesImporte = boostsMes.reduce((s, f) => s + (Number(f.importe_total) || 0), 0);
+
+    // Evolución del MRR — suma de facturas de planes (Pro/Multi) por mes, últimos 6 meses.
+    // Aproximación a partir de facturas emitidas (no hay snapshot histórico de MRR real);
+    // post-Stripe en vivo esto se sustituirá por el MRR reportado por el propio Dashboard.
+    const meses = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      meses.push({ anio: d.getFullYear(), mes: d.getMonth(), label: d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }), valor: 0 });
+    }
+    facturasVentana.forEach(f => {
+      if (!(f.concepto || '').startsWith('Plan ')) return;
+      const fecha = fechaDe(f);
+      const bucket = meses.find(m => m.anio === fecha.getFullYear() && m.mes === fecha.getMonth());
+      if (bucket) bucket.valor += Number(f.importe_total) || 0;
+    });
+
+    // Proyección a 12 meses — tasa de crecimiento medio mensual sobre los tramos con datos
+    const tasas = [];
+    for (let i = 1; i < meses.length; i++) {
+      if (meses[i - 1].valor > 0 && meses[i].valor > 0) {
+        tasas.push((meses[i].valor - meses[i - 1].valor) / meses[i - 1].valor);
+      }
+    }
+    let proyeccion = null;
+    if (tasas.length > 0) {
+      const tasaMedia = tasas.reduce((a, b) => a + b, 0) / tasas.length;
+      proyeccion = { tasaMedia, proyectado: parseFloat(mrr) * Math.pow(1 + tasaMedia, 12) };
+    }
+
+    const maxMes = Math.max(...meses.map(m => m.valor), 1);
+    const barrasHtml = meses.map(m => {
+      const alto = Math.max(Math.round((m.valor / maxMes) * 100), m.valor > 0 ? 4 : 2);
+      return `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;" title="${m.label}: ${m.valor.toFixed(2)}€">
+          <div style="font-size:0.7rem;color:var(--text-2);">${m.valor > 0 ? m.valor.toFixed(0) + '€' : '—'}</div>
+          <div style="width:100%;max-width:34px;height:${alto}px;background:var(--blue);border-radius:6px 6px 2px 2px;"></div>
+          <div style="font-size:0.7rem;color:var(--text-2);">${m.label}</div>
+        </div>`;
+    }).join('');
+
     el.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px;">
         <div style="padding:20px;background:var(--blue-light);border-radius:12px;text-align:center">
           <div style="font-size:0.78rem;color:var(--blue);font-weight:500;margin-bottom:6px">MRR Estimado</div>
           <div style="font-size:2rem;font-weight:700;color:var(--blue)">${mrr}€</div>
@@ -40,6 +99,72 @@ async function loadFinanzas() {
       </div>
       <div style="padding:16px;background:var(--bg);border-radius:10px;font-size:0.83rem;color:var(--text-2);margin-bottom:24px;">
         💡 Los ingresos reales se gestionan desde Stripe. Estos valores son estimados a partir de los planes activos en Firestore.
+      </div>
+
+      <!-- Comercios por plan y su contribución al MRR -->
+      <div style="margin-bottom:24px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+        <div style="font-size:0.95rem;font-weight:600;margin-bottom:12px;">Comercios por plan</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);color:var(--text-2);font-size:0.78rem;font-weight:500;">
+              <th style="text-align:left;padding:6px 10px;">Plan</th>
+              <th style="text-align:right;padding:6px 10px;">Comercios</th>
+              <th style="text-align:right;padding:6px 10px;">Precio</th>
+              <th style="text-align:right;padding:6px 10px;">Contribución MRR</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 10px;">Escaparate Pro</td>
+              <td style="padding:8px 10px;text-align:right;">${pro}</td>
+              <td style="padding:8px 10px;text-align:right;">${precioPro.toFixed(2)}€</td>
+              <td style="padding:8px 10px;text-align:right;font-weight:600;color:var(--blue);">${contribPro.toFixed(2)}€</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px;">Multi-Barrio</td>
+              <td style="padding:8px 10px;text-align:right;">${multi}</td>
+              <td style="padding:8px 10px;text-align:right;">${precioMulti.toFixed(2)}€</td>
+              <td style="padding:8px 10px;text-align:right;font-weight:600;color:var(--blue);">${contribMulti.toFixed(2)}€</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Boosts del mes + Proyección 12 meses -->
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px;">
+        <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+          <div style="font-size:0.78rem;color:var(--text-2);font-weight:500;margin-bottom:6px">Boosts vendidos este mes</div>
+          <div style="font-size:1.7rem;font-weight:700;color:var(--text)">${boostsMesCount}</div>
+          <div style="font-size:0.72rem;color:var(--text-2);margin-top:4px">${boostsMesImporte.toFixed(2)}€ en ventas</div>
+        </div>
+        <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+          <div style="font-size:0.78rem;color:var(--text-2);font-weight:500;margin-bottom:6px">Proyección a 12 meses</div>
+          ${proyeccion ? `
+            <div style="font-size:1.7rem;font-weight:700;color:var(--text)">${proyeccion.proyectado.toFixed(2)}€</div>
+            <div style="font-size:0.72rem;color:var(--text-2);margin-top:4px">Si se mantiene el ritmo actual (${(proyeccion.tasaMedia * 100).toFixed(1)}% mensual)</div>
+          ` : `
+            <div style="font-size:1rem;color:var(--text-2);">Datos insuficientes</div>
+            <div style="font-size:0.72rem;color:var(--text-3);margin-top:4px">Hace falta histórico de al menos 2 meses con facturación de planes</div>
+          `}
+        </div>
+      </div>
+
+      <!-- Evolución del MRR — últimos 6 meses -->
+      <div style="margin-bottom:24px;padding:16px 20px 20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+        <div style="font-size:0.95rem;font-weight:600;margin-bottom:14px;">Evolución del MRR — últimos 6 meses</div>
+        <div style="display:flex;align-items:flex-end;gap:10px;height:100px;padding:0 4px;">
+          ${barrasHtml}
+        </div>
+        <div style="font-size:0.72rem;color:var(--text-3);margin-top:12px;">Aproximado a partir de las facturas de planes emitidas cada mes.</div>
+      </div>
+
+      <!-- Acceso a Stripe -->
+      <div style="margin-bottom:24px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <div style="font-size:0.95rem;font-weight:600;">Acceso a Stripe</div>
+          <a href="https://dashboard.stripe.com/payments" target="_blank" rel="noopener" class="btn-secondary" style="text-decoration:none;">Abrir panel de Stripe ↗</a>
+        </div>
+        <div id="fin-stripe-resumen"><div class="spinner"></div></div>
       </div>
 
       <!-- Contador de facturas -->
@@ -66,8 +191,10 @@ async function loadFinanzas() {
         </div>
       </div>
 
-      <div style="font-size:0.95rem;font-weight:600;color:var(--text-1);margin-bottom:14px;">Facturas emitidas</div>
+      <div style="font-size:0.95rem;font-weight:600;color:var(--text);margin-bottom:14px;">Facturas emitidas</div>
       <div id="tabla-facturas-fin"><div class="spinner"></div></div>`;
+
+    loadResumenStripe();
 
     // Cargar facturas
     const facSnap = await db.collection('facturas')
@@ -122,6 +249,45 @@ async function loadFinanzas() {
   } catch (e) {
     el.innerHTML = '<div class="empty">Error cargando finanzas</div>';
     console.error('loadFinanzas error:', e);
+  }
+}
+
+async function loadResumenStripe() {
+  const el = document.getElementById('fin-stripe-resumen');
+  if (!el) return;
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('obtenerResumenStripe');
+    const { data } = await fn();
+    const pagos    = data.pagos    || [];
+    const disputas = data.disputas || [];
+
+    const filaPago = p => `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:7px 10px;font-size:0.82rem;">${new Date(p.fecha).toLocaleDateString('es-ES')}</td>
+      <td style="padding:7px 10px;font-size:0.82rem;color:var(--text-2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.descripcion || '—'}</td>
+      <td style="padding:7px 10px;font-size:0.82rem;text-align:right;font-weight:600;">${p.importe.toFixed(2)} ${p.moneda.toUpperCase()}</td>
+      <td style="padding:7px 10px;font-size:0.78rem;color:${p.estado === 'succeeded' ? 'var(--green)' : 'var(--text-2)'};">${p.estado}</td>
+    </tr>`;
+
+    const filaDisputa = d => `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:7px 10px;font-size:0.82rem;">${new Date(d.fecha).toLocaleDateString('es-ES')}</td>
+      <td style="padding:7px 10px;font-size:0.82rem;text-align:right;font-weight:600;">${d.importe.toFixed(2)} ${d.moneda.toUpperCase()}</td>
+      <td style="padding:7px 10px;font-size:0.78rem;color:var(--orange);">${d.motivo || '—'}</td>
+      <td style="padding:7px 10px;font-size:0.78rem;color:var(--text-2);">${d.estado}</td>
+    </tr>`;
+
+    el.innerHTML = `
+      <div style="font-size:0.8rem;font-weight:600;color:var(--text-2);margin-bottom:6px;">Últimos pagos</div>
+      ${pagos.length
+        ? `<table style="width:100%;border-collapse:collapse;margin-bottom:18px;">${pagos.map(filaPago).join('')}</table>`
+        : '<div class="empty" style="padding:10px 0;margin-bottom:18px;">Sin pagos recientes</div>'}
+      <div style="font-size:0.8rem;font-weight:600;color:var(--text-2);margin-bottom:6px;">Disputas</div>
+      ${disputas.length
+        ? `<table style="width:100%;border-collapse:collapse;">${disputas.map(filaDisputa).join('')}</table>`
+        : '<div class="empty" style="padding:10px 0;">Sin disputas</div>'}
+    `;
+  } catch (e) {
+    el.innerHTML = '<div class="empty">No se pudo cargar el resumen de Stripe</div>';
+    console.error('loadResumenStripe error:', e);
   }
 }
 
