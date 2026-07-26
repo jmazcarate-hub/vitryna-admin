@@ -541,12 +541,11 @@ async function cargarComerciosPorCategoria() {
 // ── COMERCIOS FREE SATURADOS — candidatos a upsell ──
 // avisos_cont es un contador vivo (tope duro en free): casi cualquier comercio
 // free activo lo tiene siempre cerca del límite, así que un umbral instantáneo
-// no distingue nada. En su lugar, se simula día a día (últimos 7 días) cuántas
-// publicaciones tenía activas cada comercio — vigencia = timestamp +
-// dias_vida_publicacion, igual que calcula la app — y solo se listan los que
-// han estado exactamente al límite los 7 días seguidos.
-const VENTANA_SATURACION_DIAS = 7;
-
+// no distingue nada. En su lugar, se simula día a día (ventana configurable,
+// config/parametros.dias_saturacion_free) cuántas publicaciones tenía activas
+// cada comercio — vigencia = timestamp + dias_vida_publicacion, igual que
+// calcula la app — y solo se listan los que han estado exactamente al límite
+// esos días seguidos.
 async function cargarComerciosFreeLimite() {
   const [comSnap, paramSnap, pubsSnap] = await Promise.all([
     db.collection('comercios').get(),
@@ -555,6 +554,7 @@ async function cargarComerciosFreeLimite() {
   ]);
   const limite = paramSnap.data()?.limite_pubs_free ?? 2;
   const diasVida = paramSnap.data()?.dias_vida_publicacion ?? 7;
+  const ventanaSaturacionDias = paramSnap.data()?.dias_saturacion_free ?? 10;
   const msVida = diasVida * 86400000;
 
   const pubsPorComercio = {};
@@ -572,7 +572,7 @@ async function cargarComerciosFreeLimite() {
   const candidatos = comerciosFree.filter(c => {
     const pubs = pubsPorComercio[c.id];
     if (!pubs || pubs.length < limite) return false;
-    for (let i = 0; i < VENTANA_SATURACION_DIAS; i++) {
+    for (let i = 0; i < ventanaSaturacionDias; i++) {
       const checkMs = ahoraMs - i * 86400000;
       const activasEseDia = pubs.filter(t => t <= checkMs && (t + msVida) > checkMs).length;
       if (activasEseDia < limite) return false;
@@ -581,12 +581,12 @@ async function cargarComerciosFreeLimite() {
   });
 
   const el = document.getElementById('comercios-free-limite');
-  if (!candidatos.length) { el.innerHTML = '<div class="empty">Ningún comercio free saturado durante más de una semana ahora mismo</div>'; return; }
+  if (!candidatos.length) { el.innerHTML = `<div class="empty">Ningún comercio free saturado durante ≥${ventanaSaturacionDias} días ahora mismo</div>`; return; }
 
   el.innerHTML = candidatos.map(c => `
     <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre_comercio || '—'}</div>
-      <div style="font-size:0.75rem;padding:2px 8px;border-radius:12px;background:var(--red-light);color:var(--red);font-weight:600;flex-shrink:0;">${limite}/${limite} · saturado ≥${VENTANA_SATURACION_DIAS}d</div>
+      <div style="font-size:0.75rem;padding:2px 8px;border-radius:12px;background:var(--red-light);color:var(--red);font-weight:600;flex-shrink:0;">${limite}/${limite} · saturado ≥${ventanaSaturacionDias}d</div>
     </div>`).join('');
 }
 
@@ -651,10 +651,8 @@ async function cargarKpiCuentasConAmigo() {
 
   const valEl = document.getElementById('est-cuentas-amigo');
   const subEl = document.getElementById('est-cuentas-amigo-sub');
-  const detalleEl = document.getElementById('est-cuentas-amigo-detalle');
   if (valEl) valEl.textContent = `${pct}%`;
-  if (subEl) subEl.textContent = `${conAmigo} de ${total} (vecinos + comercios)`;
-  if (detalleEl) detalleEl.textContent = `${comerciosConAmigo} comercios (${pctComercios}%) · ${vecinosConAmigo} vecinos (${pctVecinos}%)`;
+  if (subEl) subEl.textContent = `${comerciosConAmigo} com. (${pctComercios}%) · ${vecinosConAmigo} vec. (${pctVecinos}%)`;
 }
 
 // ── HELPERS ──

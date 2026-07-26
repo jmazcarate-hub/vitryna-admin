@@ -30,6 +30,10 @@ async function loadConfig() {
             <div class="config-field-info"><div class="config-field-label">Borrado automático de publicaciones (días)</div><div class="config-field-desc">Publicaciones caducadas hace más de estos días se borran cada noche consolidando sus stats</div></div>
             <input type="number" class="config-input" id="cfg-dias-limpieza" value="${p.dias_limpieza_publicaciones ?? 60}" min="1" max="365">
           </div>
+          <div class="config-field">
+            <div class="config-field-info"><div class="config-field-label">Días saturado para upsell (Estadísticas)</div><div class="config-field-desc">Panel → Estadísticas → "Comercios free saturados" solo lista comercios al límite de publicaciones durante al menos estos días seguidos</div></div>
+            <input type="number" class="config-input" id="cfg-dias-saturacion" value="${p.dias_saturacion_free ?? 10}" min="1" max="60">
+          </div>
         </div>
       </div>
 
@@ -173,6 +177,7 @@ async function guardarConfig() {
       dias_vida_publicacion: parseInt(document.getElementById('cfg-dias-vida').value) || 7,
       radio_max_km:          parseFloat(document.getElementById('cfg-radio').value) || 3,
       dias_limpieza_publicaciones: parseInt(document.getElementById('cfg-dias-limpieza').value) || 60,
+      dias_saturacion_free: parseInt(document.getElementById('cfg-dias-saturacion').value) || 10,
       precio_plan_pro:       parseFloat(document.getElementById('cfg-precio-pro').value) || 19.90,
       precio_plan_multi:     parseFloat(document.getElementById('cfg-precio-multi').value) || 15.98,
       precio_boost4h_5:      parseFloat(document.getElementById('cfg-b4h-5').value) || 5.90,
