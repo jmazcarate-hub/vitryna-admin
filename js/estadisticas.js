@@ -4,13 +4,14 @@ let chartEngagement = null;
 let chartRetencion  = null;
 let chartChurn      = null;
 let periodoPubsActual = 'dia';
+let periodoEngagementActual = 'dia';
 
 async function loadEstadisticas() {
   const cargas = [
     ['KPIs de engagement',        cargarKpisEngagement()],
     ['Publicaciones',             cargarGraficaPubsDia(periodoPubsActual)],
     ['Nuevos registros',          cargarGraficaRegistros()],
-    ['Vistas y clics',            cargarGraficaEngagement()],
+    ['Vistas y clics',            cargarGraficaEngagement(periodoEngagementActual)],
     ['Top comercios',             cargarTopComercios()],
     ['Top publicaciones',         cargarTopPublicaciones()],
     ['Ranking de actividad',      cargarRankingActividad()],
@@ -32,6 +33,7 @@ async function loadEstadisticas() {
     }
   });
   bindFiltrosPeriodoPubs();
+  bindFiltrosPeriodoEngagement();
   if (fallidos.length) {
     toast(`No se pudo cargar: ${fallidos.join(', ')} (ver consola)`, 'error');
   }
@@ -46,6 +48,20 @@ function bindFiltrosPeriodoPubs() {
       chip.classList.add('active');
       periodoPubsActual = chip.dataset.periodo;
       cargarGraficaPubsDia(periodoPubsActual);
+    });
+  });
+  cont._bound = true;
+}
+
+function bindFiltrosPeriodoEngagement() {
+  const cont = document.getElementById('filtros-engagement-periodo');
+  if (!cont || cont._bound) return;
+  cont.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      cont.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      periodoEngagementActual = chip.dataset.periodo;
+      cargarGraficaEngagement(periodoEngagementActual);
     });
   });
   cont._bound = true;
@@ -174,32 +190,77 @@ async function cargarGraficaRegistros() {
   });
 }
 
-// ── VISTAS Y CLICS POR DÍA — formato IDs: YYYY-MM-DD ──
-async function cargarGraficaEngagement() {
-  // Generar fechas en formato YYYY-MM-DD (igual que Firestore)
-  const fechas = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    fechas.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
-  }
-  const fechaSet = new Set(fechas);
-
-  // Una sola collectionGroup query en lugar de N+1 queries (una por publicación)
+// ── VISTAS Y CLICS POR DÍA / SEMANA / MES — IDs de stats_diarias: YYYY-MM-DD ──
+async function cargarGraficaEngagement(periodo = 'dia') {
+  // Una sola collectionGroup query (sin filtro de fecha) en lugar de N+1 queries
+  // por publicación — sirve igual para día, semana o mes, solo cambia cómo se
+  // agrupan luego los mismos datos.
   const statsSnap = await db.collectionGroup('stats_diarias').get();
   const mapaVistas = {};
   const mapaClics  = {};
-
   statsSnap.docs.forEach(s => {
-    if (!fechaSet.has(s.id)) return;
     const d = s.data();
     mapaVistas[s.id] = (mapaVistas[s.id] || 0) + (d.vistas || 0);
     mapaClics[s.id]  = (mapaClics[s.id]  || 0) + (d.clics  || 0);
   });
 
-  const labels = fechas.map(f => `${f.slice(8)}/${f.slice(5,7)}`);  // DD/MM
-  const vistas = fechas.map(f => mapaVistas[f] || 0);
-  const clics  = fechas.map(f => mapaClics[f]  || 0);
+  const parseFechaId = (key) => {
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  let labels, vistas, clics, subLabel;
+
+  if (periodo === 'semana') {
+    const { labels: labelsSemana, semanas } = generarEjesSemanas(12);
+    const datosVistas = new Array(12).fill(0);
+    const datosClics  = new Array(12).fill(0);
+    Object.keys(mapaVistas).forEach(key => {
+      const idx = semanaIndex(parseFechaId(key), semanas);
+      if (idx >= 0) datosVistas[idx] += mapaVistas[key];
+    });
+    Object.keys(mapaClics).forEach(key => {
+      const idx = semanaIndex(parseFechaId(key), semanas);
+      if (idx >= 0) datosClics[idx] += mapaClics[key];
+    });
+    labels = labelsSemana; vistas = datosVistas; clics = datosClics;
+    subLabel = 'Últimas 12 semanas · suma de todas las publicaciones';
+  } else if (periodo === 'mes') {
+    const hoy = new Date();
+    const meses = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      meses.push({ anio: d.getFullYear(), mes: d.getMonth(), label: d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }), vistas: 0, clics: 0 });
+    }
+    Object.keys(mapaVistas).forEach(key => {
+      const fecha = parseFechaId(key);
+      const bucket = meses.find(m => m.anio === fecha.getFullYear() && m.mes === fecha.getMonth());
+      if (bucket) bucket.vistas += mapaVistas[key];
+    });
+    Object.keys(mapaClics).forEach(key => {
+      const fecha = parseFechaId(key);
+      const bucket = meses.find(m => m.anio === fecha.getFullYear() && m.mes === fecha.getMonth());
+      if (bucket) bucket.clics += mapaClics[key];
+    });
+    labels = meses.map(m => m.label);
+    vistas = meses.map(m => m.vistas);
+    clics  = meses.map(m => m.clics);
+    subLabel = 'Últimos 12 meses · suma de todas las publicaciones';
+  } else {
+    const fechas = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      fechas.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+    }
+    labels = fechas.map(f => `${f.slice(8)}/${f.slice(5,7)}`);  // DD/MM
+    vistas = fechas.map(f => mapaVistas[f] || 0);
+    clics  = fechas.map(f => mapaClics[f]  || 0);
+    subLabel = 'Últimos 30 días · suma de todas las publicaciones';
+  }
+
+  const subEl = document.getElementById('engagement-periodo-sub');
+  if (subEl) subEl.textContent = subLabel;
 
   const ctx = document.getElementById('chart-engagement').getContext('2d');
   if (chartEngagement) chartEngagement.destroy();

@@ -340,7 +340,14 @@
       </div>
 
       <div class="card" style="margin-bottom:24px;">
-        <div class="card-header"><div><div class="card-title">Vistas y clics por día</div><div class="card-sub">Últimos 30 días · suma de todas las publicaciones</div></div></div>
+        <div class="card-header" style="flex-wrap:wrap;gap:10px;">
+          <div><div class="card-title">Vistas y clics</div><div class="card-sub" id="engagement-periodo-sub">Últimos 30 días · suma de todas las publicaciones</div></div>
+          <div style="display:flex;gap:6px;" id="filtros-engagement-periodo">
+            <div class="filter-chip active" data-periodo="dia">Día</div>
+            <div class="filter-chip" data-periodo="semana">Semana</div>
+            <div class="filter-chip" data-periodo="mes">Mes</div>
+          </div>
+        </div>
         <div class="chart-container" style="height:220px;"><canvas id="chart-engagement"></canvas></div>
       </div>
 
