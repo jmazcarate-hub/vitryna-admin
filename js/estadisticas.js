@@ -538,32 +538,56 @@ async function cargarComerciosPorCategoria() {
     </div>`).join('');
 }
 
-// ── COMERCIOS FREE CERCA DEL LÍMITE DE PUBLICACIONES — candidatos a upsell ──
+// ── COMERCIOS FREE SATURADOS — candidatos a upsell ──
+// avisos_cont es un contador vivo (tope duro en free): casi cualquier comercio
+// free activo lo tiene siempre cerca del límite, así que un umbral instantáneo
+// no distingue nada. En su lugar, se simula día a día (últimos 7 días) cuántas
+// publicaciones tenía activas cada comercio — vigencia = timestamp +
+// dias_vida_publicacion, igual que calcula la app — y solo se listan los que
+// han estado exactamente al límite los 7 días seguidos.
+const VENTANA_SATURACION_DIAS = 7;
+
 async function cargarComerciosFreeLimite() {
-  const [comSnap, paramSnap] = await Promise.all([
+  const [comSnap, paramSnap, pubsSnap] = await Promise.all([
     db.collection('comercios').get(),
     db.collection('config').doc('parametros').get(),
+    db.collection('Publicaciones').get(),
   ]);
   const limite = paramSnap.data()?.limite_pubs_free ?? 2;
+  const diasVida = paramSnap.data()?.dias_vida_publicacion ?? 7;
+  const msVida = diasVida * 86400000;
 
-  const candidatos = comSnap.docs
+  const pubsPorComercio = {};
+  pubsSnap.docs.forEach(doc => {
+    const d = doc.data();
+    if (!d.comercio_id || !d.timestamp) return;
+    (pubsPorComercio[d.comercio_id] = pubsPorComercio[d.comercio_id] || []).push(d.timestamp.toDate().getTime());
+  });
+
+  const ahoraMs = Date.now();
+  const comerciosFree = comSnap.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(c => c.plan_suscripcion === 'free' && (c.avisos_cont || 0) >= limite - 1)
-    .sort((a, b) => (b.avisos_cont || 0) - (a.avisos_cont || 0));
+    .filter(c => c.plan_suscripcion === 'free');
+
+  const candidatos = comerciosFree.filter(c => {
+    const pubs = pubsPorComercio[c.id];
+    if (!pubs || pubs.length < limite) return false;
+    for (let i = 0; i < VENTANA_SATURACION_DIAS; i++) {
+      const checkMs = ahoraMs - i * 86400000;
+      const activasEseDia = pubs.filter(t => t <= checkMs && (t + msVida) > checkMs).length;
+      if (activasEseDia < limite) return false;
+    }
+    return true;
+  });
 
   const el = document.getElementById('comercios-free-limite');
-  if (!candidatos.length) { el.innerHTML = '<div class="empty">Ningún comercio free cerca del límite ahora mismo</div>'; return; }
+  if (!candidatos.length) { el.innerHTML = '<div class="empty">Ningún comercio free saturado durante más de una semana ahora mismo</div>'; return; }
 
-  el.innerHTML = candidatos.map(c => {
-    const enLimite = (c.avisos_cont || 0) >= limite;
-    const color = enLimite ? 'var(--red)' : 'var(--orange)';
-    const colorBg = enLimite ? 'var(--red-light)' : 'var(--orange-light)';
-    return `
+  el.innerHTML = candidatos.map(c => `
     <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre_comercio || '—'}</div>
-      <div style="font-size:0.75rem;padding:2px 8px;border-radius:12px;background:${colorBg};color:${color};font-weight:600;flex-shrink:0;">${c.avisos_cont || 0} / ${limite}${enLimite ? ' · en el límite' : ''}</div>
-    </div>`;
-  }).join('');
+      <div style="font-size:0.75rem;padding:2px 8px;border-radius:12px;background:var(--red-light);color:var(--red);font-weight:600;flex-shrink:0;">${limite}/${limite} · saturado ≥${VENTANA_SATURACION_DIAS}d</div>
+    </div>`).join('');
 }
 
 // ── ACTIVACIÓN — tiempo desde el registro hasta la 2ª publicación ──
@@ -615,13 +639,22 @@ async function cargarKpiCuentasConAmigo() {
   const snap = await db.collection('usuarios').get();
   const cuentas = snap.docs.filter(doc => doc.data().rol !== 'admin');
   const total = cuentas.length;
-  const conAmigo = cuentas.filter(doc => (doc.data().amigos || []).length > 0).length;
+
+  const comercios = cuentas.filter(doc => doc.data().rol === 'comercio');
+  const vecinos   = cuentas.filter(doc => doc.data().rol !== 'comercio');
+  const comerciosConAmigo = comercios.filter(doc => (doc.data().amigos || []).length > 0).length;
+  const vecinosConAmigo   = vecinos.filter(doc => (doc.data().amigos || []).length > 0).length;
+  const conAmigo = comerciosConAmigo + vecinosConAmigo;
   const pct = total > 0 ? ((conAmigo / total) * 100).toFixed(1) : '0.0';
+  const pctComercios = total > 0 ? ((comerciosConAmigo / total) * 100).toFixed(1) : '0.0';
+  const pctVecinos   = total > 0 ? ((vecinosConAmigo / total) * 100).toFixed(1) : '0.0';
 
   const valEl = document.getElementById('est-cuentas-amigo');
   const subEl = document.getElementById('est-cuentas-amigo-sub');
+  const detalleEl = document.getElementById('est-cuentas-amigo-detalle');
   if (valEl) valEl.textContent = `${pct}%`;
   if (subEl) subEl.textContent = `${conAmigo} de ${total} (vecinos + comercios)`;
+  if (detalleEl) detalleEl.textContent = `${comerciosConAmigo} comercios (${pctComercios}%) · ${vecinosConAmigo} vecinos (${pctVecinos}%)`;
 }
 
 // ── HELPERS ──
