@@ -1,22 +1,43 @@
 let chartPubsDia    = null;
 let chartRegistros  = null;
 let chartEngagement = null;
+let chartRetencion  = null;
+let chartChurn      = null;
+let periodoPubsActual = 'dia';
 
 async function loadEstadisticas() {
   try {
     await Promise.all([
       cargarKpisEngagement(),
-      cargarGraficaPubsDia(),
+      cargarGraficaPubsDia(periodoPubsActual),
       cargarGraficaRegistros(),
       cargarGraficaEngagement(),
       cargarTopComercios(),
       cargarTopPublicaciones(),
       cargarRankingActividad(),
+      cargarGraficaRetencion(),
+      cargarGraficaChurn(),
+      cargarComerciosPorBarrio(),
     ]);
+    bindFiltrosPeriodoPubs();
   } catch (e) {
     console.error('Error cargando estadísticas:', e);
     toast('Error cargando estadísticas', 'error');
   }
+}
+
+function bindFiltrosPeriodoPubs() {
+  const cont = document.getElementById('filtros-pubs-periodo');
+  if (!cont || cont._bound) return;
+  cont.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      cont.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      periodoPubsActual = chip.dataset.periodo;
+      cargarGraficaPubsDia(periodoPubsActual);
+    });
+  });
+  cont._bound = true;
 }
 
 // ── KPIs GLOBALES ──
@@ -35,26 +56,61 @@ async function cargarKpisEngagement() {
   document.getElementById('est-pubs-sub').textContent   = 'Publicaciones registradas';
 }
 
-// ── PUBLICACIONES POR DÍA (últimos 30 días) ──
-async function cargarGraficaPubsDia() {
+// ── PUBLICACIONES POR DÍA / SEMANA / MES ──
+async function cargarGraficaPubsDia(periodo = 'dia') {
   const snap = await db.collection('Publicaciones').get();
-  const hace30 = new Date();
-  hace30.setDate(hace30.getDate() - 30);
-  const mapa = {};
-  snap.docs.forEach(doc => {
-    const ts = doc.data().timestamp;
-    if (!ts) return;
-    const d = ts.toDate();
-    if (d < hace30) return;
-    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    mapa[key] = (mapa[key] || 0) + 1;
-  });
-  const { labels, valores } = generarEjesDias(30, mapa);
+  const pubs = snap.docs.map(d => d.data()).filter(p => p.timestamp);
+
+  let labels, valores, subLabel;
+  if (periodo === 'semana') {
+    const { labels: labelsSemana, semanas } = generarEjesSemanas(12);
+    const datos = new Array(12).fill(0);
+    pubs.forEach(p => {
+      const idx = semanaIndex(p.timestamp.toDate(), semanas);
+      if (idx >= 0) datos[idx]++;
+    });
+    labels = labelsSemana;
+    valores = datos;
+    subLabel = 'Últimas 12 semanas';
+  } else if (periodo === 'mes') {
+    const hoy = new Date();
+    const meses = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      meses.push({ anio: d.getFullYear(), mes: d.getMonth(), label: d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }), valor: 0 });
+    }
+    pubs.forEach(p => {
+      const fecha = p.timestamp.toDate();
+      const bucket = meses.find(m => m.anio === fecha.getFullYear() && m.mes === fecha.getMonth());
+      if (bucket) bucket.valor++;
+    });
+    labels = meses.map(m => m.label);
+    valores = meses.map(m => m.valor);
+    subLabel = 'Últimos 12 meses';
+  } else {
+    const hace30 = new Date();
+    hace30.setDate(hace30.getDate() - 30);
+    const mapa = {};
+    pubs.forEach(p => {
+      const d = p.timestamp.toDate();
+      if (d < hace30) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      mapa[key] = (mapa[key] || 0) + 1;
+    });
+    ({ labels, valores } = generarEjesDias(30, mapa));
+    subLabel = 'Últimos 30 días';
+  }
+
+  const subEl = document.getElementById('pubs-periodo-sub');
+  if (subEl) subEl.textContent = subLabel;
+
   const ctx = document.getElementById('chart-pubs-dia').getContext('2d');
   if (chartPubsDia) chartPubsDia.destroy();
   chartPubsDia = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Publicaciones', data: valores, backgroundColor: 'rgba(26,107,255,0.15)', borderColor: '#1A6BFF', borderWidth: 2, borderRadius: 4 }] },
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Publicaciones', data: valores, borderColor: '#1A6BFF', backgroundColor: 'rgba(26,107,255,0.08)', borderWidth: 2, pointRadius: 3, tension: 0.3, fill: true },
+    ]},
     options: opcionesBase()
   });
 }
@@ -278,6 +334,128 @@ async function cargarRankingActividad() {
       </div>`;
     }).join('');
   }
+}
+
+// ── RETENCIÓN SEMANAL — % de comercios que publican cada semana ──
+async function cargarGraficaRetencion() {
+  const [pubsSnap, comSnap] = await Promise.all([
+    db.collection('Publicaciones').get(),
+    db.collection('comercios').get(),
+  ]);
+  const totalComercios = comSnap.size;
+  const { labels, semanas } = generarEjesSemanas(8);
+  const setsPorSemana = semanas.map(() => new Set());
+
+  pubsSnap.docs.forEach(doc => {
+    const d = doc.data();
+    if (!d.timestamp || !d.comercio_id) return;
+    const idx = semanaIndex(d.timestamp.toDate(), semanas);
+    if (idx >= 0) setsPorSemana[idx].add(d.comercio_id);
+  });
+
+  const conteos = setsPorSemana.map(s => s.size);
+  const porcentajes = conteos.map(c => totalComercios > 0 ? Math.round((c / totalComercios) * 1000) / 10 : 0);
+
+  const ctx = document.getElementById('chart-retencion').getContext('2d');
+  if (chartRetencion) chartRetencion.destroy();
+  chartRetencion = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: '% de comercios que publican', data: porcentajes, backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y}% (${conteos[ctx.dataIndex]} de ${totalComercios})` } },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 10 } } },
+        y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', font: { family: 'DM Sans', size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+      },
+    },
+  });
+}
+
+// ── CHURN MENSUAL — cancelaciones (envios_retencion.enviado_en) últimos 6 meses ──
+// Aproximación: no existe un snapshot histórico de la base de comercios de pago
+// por mes, así que el % se calcula contra la base de pago actual + las
+// cancelaciones de este mes (la base "antes" de esas bajas).
+async function cargarGraficaChurn() {
+  const hoy = new Date();
+  const inicioVentana = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
+
+  const [envSnap, comSnap] = await Promise.all([
+    db.collection('envios_retencion')
+      .where('enviado_en', '>=', firebase.firestore.Timestamp.fromDate(inicioVentana))
+      .get(),
+    db.collection('comercios').get(),
+  ]);
+  const comerciosPago = comSnap.docs.filter(d => {
+    const plan = d.data().plan_suscripcion;
+    return plan === 'pro' || plan === 'multi';
+  }).length;
+
+  const meses = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    meses.push({ anio: d.getFullYear(), mes: d.getMonth(), label: d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }), valor: 0 });
+  }
+  envSnap.docs.forEach(doc => {
+    const ts = doc.data().enviado_en;
+    if (!ts) return;
+    const fecha = ts.toDate();
+    const bucket = meses.find(m => m.anio === fecha.getFullYear() && m.mes === fecha.getMonth());
+    if (bucket) bucket.valor++;
+  });
+
+  const ctx = document.getElementById('chart-churn').getContext('2d');
+  if (chartChurn) chartChurn.destroy();
+  chartChurn = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: meses.map(m => m.label), datasets: [{ label: 'Cancelaciones', data: meses.map(m => m.valor), backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 10 } } },
+        y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: 'DM Sans', size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+      },
+    },
+  });
+
+  const cancelacionesMes = meses[meses.length - 1].valor;
+  const basePago = comerciosPago + cancelacionesMes;
+  const churnPct = basePago > 0 ? ((cancelacionesMes / basePago) * 100).toFixed(1) : '0.0';
+  const resumenEl = document.getElementById('churn-resumen');
+  if (resumenEl) {
+    resumenEl.textContent = `${cancelacionesMes} cancelación${cancelacionesMes !== 1 ? 'es' : ''} este mes · churn aprox. ${churnPct}% sobre ${basePago} comercios de pago`;
+  }
+}
+
+// ── COMERCIOS POR BARRIO ──
+async function cargarComerciosPorBarrio() {
+  const snap = await db.collection('comercios').get();
+  const mapa = {};
+  snap.docs.forEach(doc => {
+    const barrio = doc.data().barrio || 'Sin barrio';
+    mapa[barrio] = (mapa[barrio] || 0) + 1;
+  });
+  const lista = Object.entries(mapa)
+    .map(([barrio, count]) => ({ barrio, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const el = document.getElementById('comercios-por-barrio');
+  if (!lista.length) { el.innerHTML = '<div class="empty">Sin datos todavía</div>'; return; }
+  const maxC = lista[0].count || 1;
+  el.innerHTML = lista.map(b => `
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.barrio}</div>
+        <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;width:${Math.round(b.count/maxC*100)}%;background:var(--blue);border-radius:2px;"></div>
+        </div>
+      </div>
+      <div style="font-size:0.8rem;font-family:'DM Mono',monospace;color:var(--blue);font-weight:600;flex-shrink:0;">${b.count}</div>
+    </div>`).join('');
 }
 
 // ── HELPERS ──

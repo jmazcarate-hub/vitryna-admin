@@ -316,7 +316,14 @@
 
       <div class="charts-row" style="margin-bottom:24px;">
         <div class="card">
-          <div class="card-header"><div><div class="card-title">Publicaciones por día</div><div class="card-sub">Últimos 30 días</div></div></div>
+          <div class="card-header" style="flex-wrap:wrap;gap:10px;">
+            <div><div class="card-title">Publicaciones</div><div class="card-sub" id="pubs-periodo-sub">Últimos 30 días</div></div>
+            <div style="display:flex;gap:6px;" id="filtros-pubs-periodo">
+              <div class="filter-chip active" data-periodo="dia">Día</div>
+              <div class="filter-chip" data-periodo="semana">Semana</div>
+              <div class="filter-chip" data-periodo="mes">Mes</div>
+            </div>
+          </div>
           <div class="chart-container" style="height:220px;"><canvas id="chart-pubs-dia"></canvas></div>
         </div>
         <div class="card">
@@ -328,6 +335,23 @@
       <div class="card" style="margin-bottom:24px;">
         <div class="card-header"><div><div class="card-title">Vistas y clics por día</div><div class="card-sub">Últimos 30 días · suma de todas las publicaciones</div></div></div>
         <div class="chart-container" style="height:220px;"><canvas id="chart-engagement"></canvas></div>
+      </div>
+
+      <div class="charts-row" style="margin-bottom:24px;">
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Retención semanal de comercios</div><div class="card-sub">% que publican cada semana · últimas 8 semanas</div></div></div>
+          <div class="chart-container" style="height:220px;"><canvas id="chart-retencion"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Churn mensual</div><div class="card-sub">Cancelaciones de plan · últimos 6 meses</div></div></div>
+          <div class="chart-container" style="height:180px;"><canvas id="chart-churn"></canvas></div>
+          <div style="margin-top:10px;font-size:0.8rem;color:var(--text-2);" id="churn-resumen">—</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-header"><div class="card-title">Comercios por barrio</div></div>
+        <div id="comercios-por-barrio" style="max-height:320px;overflow-y:auto;"><div class="spinner"></div></div>
       </div>
 
       <div class="recent-grid">
