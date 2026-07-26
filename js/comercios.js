@@ -26,10 +26,14 @@ async function loadComercios() {
     }));
     todosComercios.forEach(c => { c.seguidos_count = seguidosMap[c.id] || 0; });
 
-    // Comercios free saturados — mismo criterio que Estadísticas → "Comercios
-    // free saturados": al límite exacto de publicaciones activas durante los
-    // últimos config/parametros.dias_saturacion_free días seguidos (no un
-    // umbral instantáneo, que devolvería casi cualquier free activo).
+    // Comercios free saturados — candidatos a upsell. avisos_cont es un
+    // contador vivo con tope duro en free, así que un umbral instantáneo
+    // devolvería casi cualquier free activo. En su lugar se cuentan cuántos
+    // días (no necesariamente seguidos) desde el alta ha tenido `limite`
+    // publicaciones activas simultáneamente, acotado por los días que lleva
+    // de alta (no tiene sentido comprobar antes de que existiera) — y se
+    // marca "saturado" si ese total llega al umbral configurado
+    // (config/parametros.dias_saturacion_free).
     const limitePubsFree = paramSnap.data()?.limite_pubs_free ?? 2;
     const diasVidaPub = paramSnap.data()?.dias_vida_publicacion ?? 7;
     const ventanaSaturacionDias = paramSnap.data()?.dias_saturacion_free ?? 10;
@@ -43,15 +47,25 @@ async function loadComercios() {
     const ahoraMs = Date.now();
     todosComercios.forEach(c => {
       c.saturado = false;
+      c.diasSaturado = 0;
+      c.diasDesdeAlta = 0;
       if (c.plan_suscripcion !== 'free') return;
+      const creadoEn = c.creado_en?.toDate ? c.creado_en.toDate() : null;
+      if (!creadoEn) return;
+      const diasDesdeAlta = Math.max(1, Math.floor((ahoraMs - creadoEn.getTime()) / 86400000));
+      c.diasDesdeAlta = diasDesdeAlta;
+
       const pubs = pubsPorComercio[c.id];
       if (!pubs || pubs.length < limitePubsFree) return;
-      c.saturado = true;
-      for (let i = 0; i < ventanaSaturacionDias; i++) {
+
+      let diasSaturado = 0;
+      for (let i = 0; i < diasDesdeAlta; i++) {
         const checkMs = ahoraMs - i * 86400000;
         const activasEseDia = pubs.filter(t => t <= checkMs && (t + msVidaPub) > checkMs).length;
-        if (activasEseDia < limitePubsFree) { c.saturado = false; break; }
+        if (activasEseDia >= limitePubsFree) diasSaturado++;
       }
+      c.diasSaturado = diasSaturado;
+      c.saturado = diasSaturado >= ventanaSaturacionDias;
     });
 
     renderComercios();
@@ -126,7 +140,7 @@ function renderComercios() {
         return `<tr>
           <td><div style="font-weight:500">${c.nombre_comercio || '—'}</div><div style="font-size:0.75rem;color:var(--text-2)">${c.email || '—'}</div><div style="font-size:0.75rem;color:var(--text-3)">${c.telefono || '—'}</div></td>
           <td style="color:var(--text-2);font-size:0.83rem">${c.categoria || '—'}</td>
-          <td><span class="badge ${plan}">${plan.toUpperCase()}</span>${c.saturado ? '<div style="margin-top:4px;"><span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;">Saturado</span></div>' : ''}</td>
+          <td><span class="badge ${plan}">${plan.toUpperCase()}</span>${c.saturado ? `<div style="margin-top:4px;"><span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;">Saturado ${c.diasSaturado} de ${c.diasDesdeAlta}d</span></div>` : ''}</td>
           <td><span class="${vi.clase}">${vi.texto}</span></td>
           <td>${stripeTag}</td>
           <td style="text-align:center;">${badgeBoost(c.boosts_4h, 'orange')}</td>
