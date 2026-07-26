@@ -6,23 +6,30 @@ let chartChurn      = null;
 let periodoPubsActual = 'dia';
 
 async function loadEstadisticas() {
-  try {
-    await Promise.all([
-      cargarKpisEngagement(),
-      cargarGraficaPubsDia(periodoPubsActual),
-      cargarGraficaRegistros(),
-      cargarGraficaEngagement(),
-      cargarTopComercios(),
-      cargarTopPublicaciones(),
-      cargarRankingActividad(),
-      cargarGraficaRetencion(),
-      cargarGraficaChurn(),
-      cargarComerciosPorBarrio(),
-    ]);
-    bindFiltrosPeriodoPubs();
-  } catch (e) {
-    console.error('Error cargando estadísticas:', e);
-    toast('Error cargando estadísticas', 'error');
+  const cargas = [
+    ['KPIs de engagement',        cargarKpisEngagement()],
+    ['Publicaciones',             cargarGraficaPubsDia(periodoPubsActual)],
+    ['Nuevos registros',          cargarGraficaRegistros()],
+    ['Vistas y clics',            cargarGraficaEngagement()],
+    ['Top comercios',             cargarTopComercios()],
+    ['Top publicaciones',         cargarTopPublicaciones()],
+    ['Ranking de actividad',      cargarRankingActividad()],
+    ['Retención semanal',         cargarGraficaRetencion()],
+    ['Churn mensual',             cargarGraficaChurn()],
+    ['Comercios por barrio',      cargarComerciosPorBarrio()],
+  ];
+  const resultados = await Promise.allSettled(cargas.map(([, p]) => p));
+  const fallidos = [];
+  resultados.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      const [nombre] = cargas[i];
+      console.error(`[Estadísticas] Error cargando "${nombre}":`, r.reason);
+      fallidos.push(nombre);
+    }
+  });
+  bindFiltrosPeriodoPubs();
+  if (fallidos.length) {
+    toast(`No se pudo cargar: ${fallidos.join(', ')} (ver consola)`, 'error');
   }
 }
 
