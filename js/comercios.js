@@ -1,5 +1,6 @@
 let todosComercios = [];
 let filtroCom = 'todos';
+let umbralSaturacionFree = 10;
 
 async function loadComercios() {
   document.getElementById('tabla-comercios').innerHTML = '<div class="spinner"></div>';
@@ -37,6 +38,7 @@ async function loadComercios() {
     const limitePubsFree = paramSnap.data()?.limite_pubs_free ?? 2;
     const diasVidaPub = paramSnap.data()?.dias_vida_publicacion ?? 7;
     const ventanaSaturacionDias = paramSnap.data()?.dias_saturacion_free ?? 10;
+    umbralSaturacionFree = ventanaSaturacionDias;
     const msVidaPub = diasVidaPub * 86400000;
     const pubsPorComercio = {};
     pubsSnap.docs.forEach(doc => {
@@ -120,12 +122,13 @@ function renderComercios() {
   });
 
   const el = document.getElementById('tabla-comercios');
-  if (!lista.length) { el.innerHTML = '<div class="empty">No se encontraron comercios</div>'; return; }
+  const notaSaturados = filtroCom === 'saturados' ? ` (≥${umbralSaturacionFree} días saturado)` : '';
+  if (!lista.length) { el.innerHTML = `<div class="empty">No se encontraron comercios${notaSaturados}</div>`; return; }
 
   el.innerHTML = `
     <div style="padding:8px 20px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);">
       ${lista.length} comercio${lista.length !== 1 ? 's' : ''}
-      ${filtroCom !== 'todos' ? ` · filtro: <strong>${filtroCom}</strong>` : ''}
+      ${filtroCom !== 'todos' ? ` · filtro: <strong>${filtroCom}</strong>${notaSaturados}` : ''}
     </div>
     <table>
       <thead><tr><th>Comercio</th><th>Categoría</th><th>Plan</th><th>Vencimiento</th><th>Stripe</th><th style="text-align:center;">Boosts 4h</th><th style="text-align:center;">Boosts 24h</th><th style="text-align:center;">Seguidores</th><th style="text-align:center;">Siguiendo</th><th>Registro</th><th>Acciones</th></tr></thead>
