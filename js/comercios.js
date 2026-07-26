@@ -4,7 +4,11 @@ let filtroCom = 'todos';
 async function loadComercios() {
   document.getElementById('tabla-comercios').innerHTML = '<div class="spinner"></div>';
   try {
-    const snap = await db.collection('comercios').orderBy('creado_en', 'desc').get();
+    const [snap, paramSnap, pubsSnap] = await Promise.all([
+      db.collection('comercios').orderBy('creado_en', 'desc').get(),
+      db.collection('config').doc('parametros').get(),
+      db.collection('Publicaciones').get(),
+    ]);
     todosComercios = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     // Leer amigos en batches de 30 (límite whereIn) en lugar de N queries individuales
@@ -21,6 +25,35 @@ async function loadComercios() {
       seguidosMap[doc.id] = (doc.data()?.amigos || []).length;
     }));
     todosComercios.forEach(c => { c.seguidos_count = seguidosMap[c.id] || 0; });
+
+    // Comercios free saturados — mismo criterio que Estadísticas → "Comercios
+    // free saturados": al límite exacto de publicaciones activas durante los
+    // últimos config/parametros.dias_saturacion_free días seguidos (no un
+    // umbral instantáneo, que devolvería casi cualquier free activo).
+    const limitePubsFree = paramSnap.data()?.limite_pubs_free ?? 2;
+    const diasVidaPub = paramSnap.data()?.dias_vida_publicacion ?? 7;
+    const ventanaSaturacionDias = paramSnap.data()?.dias_saturacion_free ?? 10;
+    const msVidaPub = diasVidaPub * 86400000;
+    const pubsPorComercio = {};
+    pubsSnap.docs.forEach(doc => {
+      const d = doc.data();
+      if (!d.comercio_id || !d.timestamp) return;
+      (pubsPorComercio[d.comercio_id] = pubsPorComercio[d.comercio_id] || []).push(d.timestamp.toDate().getTime());
+    });
+    const ahoraMs = Date.now();
+    todosComercios.forEach(c => {
+      c.saturado = false;
+      if (c.plan_suscripcion !== 'free') return;
+      const pubs = pubsPorComercio[c.id];
+      if (!pubs || pubs.length < limitePubsFree) return;
+      c.saturado = true;
+      for (let i = 0; i < ventanaSaturacionDias; i++) {
+        const checkMs = ahoraMs - i * 86400000;
+        const activasEseDia = pubs.filter(t => t <= checkMs && (t + msVidaPub) > checkMs).length;
+        if (activasEseDia < limitePubsFree) { c.saturado = false; break; }
+      }
+    });
+
     renderComercios();
     if (!document.getElementById('search-comercios')._bound) {
       document.getElementById('search-comercios').addEventListener('input', renderComercios);
@@ -67,6 +100,7 @@ function renderComercios() {
     if (filtroCom === 'vence-pronto' && !(dias !== null && dias >= 0 && dias <= 7)) return false;
     if (filtroCom === 'con-boosts4h'  && !((c.boosts_4h  || 0) > 0)) return false;
     if (filtroCom === 'con-boosts24h' && !((c.boosts_24h || 0) > 0)) return false;
+    if (filtroCom === 'saturados'     && !c.saturado) return false;
     if (q && !`${c.nombre_comercio} ${c.cif_nif} ${c.email}`.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -92,7 +126,7 @@ function renderComercios() {
         return `<tr>
           <td><div style="font-weight:500">${c.nombre_comercio || '—'}</div><div style="font-size:0.75rem;color:var(--text-2)">${c.email || '—'}</div><div style="font-size:0.75rem;color:var(--text-3)">${c.telefono || '—'}</div></td>
           <td style="color:var(--text-2);font-size:0.83rem">${c.categoria || '—'}</td>
-          <td><span class="badge ${plan}">${plan.toUpperCase()}</span></td>
+          <td><span class="badge ${plan}">${plan.toUpperCase()}</span>${c.saturado ? '<div style="margin-top:4px;"><span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;">Saturado</span></div>' : ''}</td>
           <td><span class="${vi.clase}">${vi.texto}</span></td>
           <td>${stripeTag}</td>
           <td style="text-align:center;">${badgeBoost(c.boosts_4h, 'orange')}</td>
