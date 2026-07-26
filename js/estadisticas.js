@@ -16,6 +16,7 @@ async function loadEstadisticas() {
     ['Ranking de actividad',      cargarRankingActividad()],
     ['Retención semanal',         cargarGraficaRetencion()],
     ['Churn mensual',             cargarGraficaChurn()],
+    ['Funnel de conversión',      cargarFunnelConversion()],
     ['Comercios por barrio',      cargarComerciosPorBarrio()],
   ];
   const resultados = await Promise.allSettled(cargas.map(([, p]) => p));
@@ -436,6 +437,47 @@ async function cargarGraficaChurn() {
   if (resumenEl) {
     resumenEl.textContent = `${cancelacionesMes} cancelación${cancelacionesMes !== 1 ? 'es' : ''} este mes · churn aprox. ${churnPct}% sobre ${basePago} comercios de pago`;
   }
+}
+
+// ── FUNNEL DE CONVERSIÓN — registro > primer amigo > primer boost ──
+// Sin el paso "descarga": no es medible sin datos de la store/Analytics.
+async function cargarFunnelConversion() {
+  const [comSnap, facSnap] = await Promise.all([
+    db.collection('comercios').get(),
+    db.collection('facturas').where('tipo', '==', 'boost').get(),
+  ]);
+
+  const totalRegistro = comSnap.size;
+  const conAmigo = comSnap.docs.filter(d => (d.data().seguidores_count || 0) > 0).length;
+  const comerciosConBoost = new Set(facSnap.docs.map(d => d.data().comercio_id).filter(Boolean));
+  const conBoost = comerciosConBoost.size;
+
+  const pasos = [
+    { label: 'Registro',      valor: totalRegistro },
+    { label: 'Primer amigo',  valor: conAmigo },
+    { label: 'Primer boost',  valor: conBoost },
+  ];
+
+  const el = document.getElementById('funnel-conversion');
+  if (!el) return;
+  if (!totalRegistro) { el.innerHTML = '<div class="empty">Sin comercios todavía</div>'; return; }
+
+  const base = pasos[0].valor;
+  el.innerHTML = pasos.map((p, i) => {
+    const pct = Math.round((p.valor / base) * 1000) / 10;
+    const pctPrevio = i > 0 && pasos[i - 1].valor > 0 ? Math.round((p.valor / pasos[i - 1].valor) * 1000) / 10 : null;
+    return `
+      <div style="padding:12px 0;${i > 0 ? 'border-top:1px solid var(--border);' : ''}">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+          <div style="font-size:0.85rem;font-weight:500;">${p.label}</div>
+          <div style="font-size:0.8rem;font-family:'DM Mono',monospace;color:var(--blue);font-weight:600;">${p.valor}</div>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:var(--blue);border-radius:4px;"></div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--text-2);margin-top:4px;">${pct}% del total${pctPrevio !== null ? ` · ${pctPrevio}% del paso anterior` : ''}</div>
+      </div>`;
+  }).join('');
 }
 
 // ── COMERCIOS POR BARRIO ──
