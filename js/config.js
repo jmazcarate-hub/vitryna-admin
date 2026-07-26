@@ -43,6 +43,25 @@ async function loadConfig() {
       </div>
 
       <div class="config-section">
+        <div class="config-section-title">IDs de precios en Stripe</div>
+        <div class="config-section-desc">
+          Cada Price de Stripe es inmutable: para cambiar un importe hay que crear un Price nuevo en el
+          <a href="https://dashboard.stripe.com/prices" target="_blank" rel="noopener">Dashboard de Stripe</a>
+          y pegar aquí su ID. La app y las Cloud Functions lo recogen sin publicar nada.
+        </div>
+        <div class="config-block">
+          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Escaparate Pro</div></div><input type="text" class="config-input wide" id="cfg-price-pro" value="${p.stripe_price_pro || ''}" placeholder="price_..."></div>
+          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Multi-Barrio</div><div class="config-field-desc">Se activa automáticamente, no se elige desde la app</div></div><input type="text" class="config-input wide" id="cfg-price-multi" value="${p.stripe_price_multi || ''}" placeholder="price_..."></div>
+          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Boost 4h — pack 5</div></div><input type="text" class="config-input wide" id="cfg-price-b4h-5" value="${p.stripe_price_boost4h_5 || ''}" placeholder="price_..."></div>
+          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Boost 4h — pack 10</div></div><input type="text" class="config-input wide" id="cfg-price-b4h-10" value="${p.stripe_price_boost4h_10 || ''}" placeholder="price_..."></div>
+          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Boost 4h — pack 30</div></div><input type="text" class="config-input wide" id="cfg-price-b4h-30" value="${p.stripe_price_boost4h_30 || ''}" placeholder="price_..."></div>
+          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Boost 24h — pack 5</div></div><input type="text" class="config-input wide" id="cfg-price-b24h-5" value="${p.stripe_price_boost24h_5 || ''}" placeholder="price_..."></div>
+          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Boost 24h — pack 10</div></div><input type="text" class="config-input wide" id="cfg-price-b24h-10" value="${p.stripe_price_boost24h_10 || ''}" placeholder="price_..."></div>
+          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Boost 24h — pack 30</div></div><input type="text" class="config-input wide" id="cfg-price-b24h-30" value="${p.stripe_price_boost24h_30 || ''}" placeholder="price_..."></div>
+        </div>
+      </div>
+
+      <div class="config-section">
         <div class="config-section-title">Precios boosts 4h</div>
         <div class="config-section-desc">Packs Super-Escaparate (4 horas)</div>
         <div class="config-block">
@@ -162,6 +181,14 @@ async function guardarConfig() {
       precio_boost24h_5:     parseFloat(document.getElementById('cfg-b24h-5').value) || 9.90,
       precio_boost24h_10:    parseFloat(document.getElementById('cfg-b24h-10').value) || 16.90,
       precio_boost24h_30:    parseFloat(document.getElementById('cfg-b24h-30').value) || 47.90,
+      stripe_price_pro:          document.getElementById('cfg-price-pro').value.trim(),
+      stripe_price_multi:        document.getElementById('cfg-price-multi').value.trim(),
+      stripe_price_boost4h_5:    document.getElementById('cfg-price-b4h-5').value.trim(),
+      stripe_price_boost4h_10:   document.getElementById('cfg-price-b4h-10').value.trim(),
+      stripe_price_boost4h_30:   document.getElementById('cfg-price-b4h-30').value.trim(),
+      stripe_price_boost24h_5:   document.getElementById('cfg-price-b24h-5').value.trim(),
+      stripe_price_boost24h_10:  document.getElementById('cfg-price-b24h-10').value.trim(),
+      stripe_price_boost24h_30:  document.getElementById('cfg-price-b24h-30').value.trim(),
     };
     const emisor = {
       razon_social:       document.getElementById('cfg-razon-social').value.trim(),
