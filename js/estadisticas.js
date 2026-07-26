@@ -18,6 +18,10 @@ async function loadEstadisticas() {
     ['Churn mensual',             cargarGraficaChurn()],
     ['Funnel de conversión',      cargarFunnelConversion()],
     ['Comercios por barrio',      cargarComerciosPorBarrio()],
+    ['Comercios por categoría',   cargarComerciosPorCategoria()],
+    ['Comercios free cerca del límite', cargarComerciosFreeLimite()],
+    ['Activación (2ª publicación)', cargarActivacionSegundaPublicacion()],
+    ['Cuentas con amigo',         cargarKpiCuentasConAmigo()],
   ];
   const resultados = await Promise.allSettled(cargas.map(([, p]) => p));
   const fallidos = [];
@@ -505,6 +509,119 @@ async function cargarComerciosPorBarrio() {
       </div>
       <div style="font-size:0.8rem;font-family:'DM Mono',monospace;color:var(--blue);font-weight:600;flex-shrink:0;">${b.count}</div>
     </div>`).join('');
+}
+
+// ── COMERCIOS POR CATEGORÍA ──
+async function cargarComerciosPorCategoria() {
+  const snap = await db.collection('comercios').get();
+  const mapa = {};
+  snap.docs.forEach(doc => {
+    const categoria = doc.data().categoria || 'Sin categoría';
+    mapa[categoria] = (mapa[categoria] || 0) + 1;
+  });
+  const lista = Object.entries(mapa)
+    .map(([categoria, count]) => ({ categoria, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const el = document.getElementById('comercios-por-categoria');
+  if (!lista.length) { el.innerHTML = '<div class="empty">Sin datos todavía</div>'; return; }
+  const maxC = lista[0].count || 1;
+  el.innerHTML = lista.map(c => `
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.categoria}</div>
+        <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;width:${Math.round(c.count/maxC*100)}%;background:var(--orange);border-radius:2px;"></div>
+        </div>
+      </div>
+      <div style="font-size:0.8rem;font-family:'DM Mono',monospace;color:var(--orange);font-weight:600;flex-shrink:0;">${c.count}</div>
+    </div>`).join('');
+}
+
+// ── COMERCIOS FREE CERCA DEL LÍMITE DE PUBLICACIONES — candidatos a upsell ──
+async function cargarComerciosFreeLimite() {
+  const [comSnap, paramSnap] = await Promise.all([
+    db.collection('comercios').get(),
+    db.collection('config').doc('parametros').get(),
+  ]);
+  const limite = paramSnap.data()?.limite_pubs_free ?? 2;
+
+  const candidatos = comSnap.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(c => c.plan_suscripcion === 'free' && (c.avisos_cont || 0) >= limite - 1)
+    .sort((a, b) => (b.avisos_cont || 0) - (a.avisos_cont || 0));
+
+  const el = document.getElementById('comercios-free-limite');
+  if (!candidatos.length) { el.innerHTML = '<div class="empty">Ningún comercio free cerca del límite ahora mismo</div>'; return; }
+
+  el.innerHTML = candidatos.map(c => {
+    const enLimite = (c.avisos_cont || 0) >= limite;
+    const color = enLimite ? 'var(--red)' : 'var(--orange)';
+    const colorBg = enLimite ? 'var(--red-light)' : 'var(--orange-light)';
+    return `
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre_comercio || '—'}</div>
+      <div style="font-size:0.75rem;padding:2px 8px;border-radius:12px;background:${colorBg};color:${color};font-weight:600;flex-shrink:0;">${c.avisos_cont || 0} / ${limite}${enLimite ? ' · en el límite' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── ACTIVACIÓN — tiempo desde el registro hasta la 2ª publicación ──
+// La 1ª publicación de cada comercio suele ser la de bienvenida automática
+// (crearPublicacionPresentacion), así que la señal real de activación es la 2ª.
+async function cargarActivacionSegundaPublicacion() {
+  const [comSnap, pubsSnap] = await Promise.all([
+    db.collection('comercios').get(),
+    db.collection('Publicaciones').get(),
+  ]);
+
+  const porComercio = {};
+  pubsSnap.docs.forEach(doc => {
+    const d = doc.data();
+    if (!d.comercio_id || !d.timestamp) return;
+    (porComercio[d.comercio_id] = porComercio[d.comercio_id] || []).push(d.timestamp.toDate());
+  });
+
+  const dias = [];
+  comSnap.docs.forEach(doc => {
+    const c = doc.data();
+    if (!c.creado_en) return;
+    const lista = (porComercio[doc.id] || []).sort((a, b) => a - b);
+    if (lista.length < 2) return;
+    const diffDias = (lista[1] - c.creado_en.toDate()) / 86400000;
+    if (diffDias >= 0) dias.push(diffDias);
+  });
+
+  const el = document.getElementById('activacion-resumen');
+  if (!el) return;
+  if (!dias.length) {
+    el.innerHTML = '<div class="empty">Sin comercios con 2ª publicación todavía</div>';
+    return;
+  }
+  const media = dias.reduce((a, b) => a + b, 0) / dias.length;
+  el.innerHTML = `
+    <div style="font-size:1.7rem;font-weight:700;color:var(--text);">${media.toFixed(1)} días</div>
+    <div style="font-size:0.72rem;color:var(--text-2);margin-top:4px;">Media desde el registro hasta la 2ª publicación</div>
+    <div style="font-size:0.72rem;color:var(--text-3);margin-top:8px;">${dias.length} de ${comSnap.size} comercios han llegado a su 2ª publicación</div>
+  `;
+}
+
+// ── KPI: CUENTAS (VECINOS + COMERCIOS) CON AL MENOS UN AMIGO AÑADIDO ──
+// toggleAmigo es válido tanto para vecinos como para comercios que siguen a
+// otros comercios (un comercio también tiene su propio doc en usuarios/{uid}
+// con su lista de amigos) — así que aquí no se distingue entre unos y otros,
+// solo se excluye la cuenta de admin.
+async function cargarKpiCuentasConAmigo() {
+  const snap = await db.collection('usuarios').get();
+  const cuentas = snap.docs.filter(doc => doc.data().rol !== 'admin');
+  const total = cuentas.length;
+  const conAmigo = cuentas.filter(doc => (doc.data().amigos || []).length > 0).length;
+  const pct = total > 0 ? ((conAmigo / total) * 100).toFixed(1) : '0.0';
+
+  const valEl = document.getElementById('est-cuentas-amigo');
+  const subEl = document.getElementById('est-cuentas-amigo-sub');
+  if (valEl) valEl.textContent = `${pct}%`;
+  if (subEl) subEl.textContent = `${conAmigo} de ${total} (vecinos + comercios)`;
 }
 
 // ── HELPERS ──

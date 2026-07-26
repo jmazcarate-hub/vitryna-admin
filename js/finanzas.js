@@ -39,6 +39,8 @@ async function loadFinanzas() {
     );
     const boostsMesCount   = boostsMes.length;
     const boostsMesImporte = boostsMes.reduce((s, f) => s + (Number(f.importe_total) || 0), 0);
+    const boostsMes4h  = boostsMes.filter(f => f.duracion === '4h').length;
+    const boostsMes24h = boostsMes.filter(f => f.duracion === '24h').length;
 
     // Evolución del MRR — suma de facturas de planes (Pro/Multi) por mes, últimos 6 meses.
     // Aproximación a partir de facturas emitidas (no hay snapshot histórico de MRR real);
@@ -135,7 +137,7 @@ async function loadFinanzas() {
         <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
           <div style="font-size:0.78rem;color:var(--text-2);font-weight:500;margin-bottom:6px">Boosts vendidos este mes</div>
           <div style="font-size:1.7rem;font-weight:700;color:var(--text)">${boostsMesCount}</div>
-          <div style="font-size:0.72rem;color:var(--text-2);margin-top:4px">${boostsMesImporte.toFixed(2)}€ en ventas</div>
+          <div style="font-size:0.72rem;color:var(--text-2);margin-top:4px">${boostsMesImporte.toFixed(2)}€ en ventas · ${boostsMes4h} de 4h · ${boostsMes24h} de 24h</div>
         </div>
         <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
           <div style="font-size:0.78rem;color:var(--text-2);font-weight:500;margin-bottom:6px">Proyección a 12 meses</div>
