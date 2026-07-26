@@ -35,7 +35,7 @@ async function loadFinanzas() {
     const fechaDe = f => (f.fecha?.toDate ? f.fecha.toDate() : new Date(f.fecha));
 
     const boostsMes = facturasVentana.filter(f =>
-      fechaDe(f) >= inicioMesActual && (f.concepto || '').startsWith('Super-Escaparate')
+      fechaDe(f) >= inicioMesActual && f.tipo === 'boost'
     );
     const boostsMesCount   = boostsMes.length;
     const boostsMesImporte = boostsMes.reduce((s, f) => s + (Number(f.importe_total) || 0), 0);
@@ -49,7 +49,7 @@ async function loadFinanzas() {
       meses.push({ anio: d.getFullYear(), mes: d.getMonth(), label: d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }), valor: 0 });
     }
     facturasVentana.forEach(f => {
-      if (!(f.concepto || '').startsWith('Plan ')) return;
+      if (f.tipo !== 'plan') return;
       const fecha = fechaDe(f);
       const bucket = meses.find(m => m.anio === fecha.getFullYear() && m.mes === fecha.getMonth());
       if (bucket) bucket.valor += Number(f.importe_total) || 0;
