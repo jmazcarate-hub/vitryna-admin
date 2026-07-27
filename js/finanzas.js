@@ -82,7 +82,7 @@ async function loadFinanzas() {
     }).join('');
 
     el.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:16px;">
         <div style="padding:20px;background:var(--blue-light);border-radius:12px;text-align:center">
           <div style="font-size:0.78rem;color:var(--blue);font-weight:500;margin-bottom:6px">MRR Estimado</div>
           <div style="font-size:2rem;font-weight:700;color:var(--blue)">${mrr}€</div>
@@ -106,7 +106,8 @@ async function loadFinanzas() {
       <!-- Comercios por plan y su contribución al MRR -->
       <div style="margin-bottom:24px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
         <div style="font-size:0.95rem;font-weight:600;margin-bottom:12px;">Comercios por plan</div>
-        <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+        <div style="overflow-x:auto;">
+        <table style="width:100%;min-width:420px;border-collapse:collapse;font-size:0.84rem;">
           <thead>
             <tr style="border-bottom:2px solid var(--border);color:var(--text-2);font-size:0.78rem;font-weight:500;">
               <th style="text-align:left;padding:6px 10px;">Plan</th>
@@ -130,10 +131,11 @@ async function loadFinanzas() {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- Boosts del mes + Proyección 12 meses -->
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px;">
         <div style="padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
           <div style="font-size:0.78rem;color:var(--text-2);font-weight:500;margin-bottom:6px">Boosts vendidos este mes</div>
           <div style="font-size:1.7rem;font-weight:700;color:var(--text)">${boostsMesCount}</div>
@@ -228,7 +230,8 @@ async function loadFinanzas() {
       }).join('');
 
       tfEl.innerHTML = `
-        <table style="width:100%;border-collapse:collapse;font-size:0.84rem;">
+        <div style="overflow-x:auto;">
+        <table style="width:100%;min-width:640px;border-collapse:collapse;font-size:0.84rem;">
           <thead>
             <tr style="border-bottom:2px solid var(--border);color:var(--text-2);font-size:0.78rem;font-weight:500;">
               <th style="text-align:left;padding:8px 10px;">Nº Factura</th>
@@ -240,7 +243,8 @@ async function loadFinanzas() {
             </tr>
           </thead>
           <tbody>${rows}</tbody>
-        </table>`;
+        </table>
+        </div>`;
 
       tfEl.querySelectorAll('tbody tr').forEach((tr, i) => {
         tr.style.borderBottom = '1px solid var(--border)';
@@ -280,11 +284,11 @@ async function loadResumenStripe() {
     el.innerHTML = `
       <div style="font-size:0.8rem;font-weight:600;color:var(--text-2);margin-bottom:6px;">Últimos pagos</div>
       ${pagos.length
-        ? `<table style="width:100%;border-collapse:collapse;margin-bottom:18px;">${pagos.map(filaPago).join('')}</table>`
+        ? `<div style="overflow-x:auto;margin-bottom:18px;"><table style="width:100%;min-width:420px;border-collapse:collapse;">${pagos.map(filaPago).join('')}</table></div>`
         : '<div class="empty" style="padding:10px 0;margin-bottom:18px;">Sin pagos recientes</div>'}
       <div style="font-size:0.8rem;font-weight:600;color:var(--text-2);margin-bottom:6px;">Disputas</div>
       ${disputas.length
-        ? `<table style="width:100%;border-collapse:collapse;">${disputas.map(filaDisputa).join('')}</table>`
+        ? `<div style="overflow-x:auto;"><table style="width:100%;min-width:380px;border-collapse:collapse;">${disputas.map(filaDisputa).join('')}</table></div>`
         : '<div class="empty" style="padding:10px 0;">Sin disputas</div>'}
     `;
   } catch (e) {
