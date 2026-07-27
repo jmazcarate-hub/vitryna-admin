@@ -74,10 +74,10 @@ async function loadFinanzas() {
     const barrasHtml = meses.map(m => {
       const alto = Math.max(Math.round((m.valor / maxMes) * 100), m.valor > 0 ? 4 : 2);
       return `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;" title="${m.label}: ${m.valor.toFixed(2)}€">
-          <div style="font-size:0.7rem;color:var(--text-2);">${m.valor > 0 ? m.valor.toFixed(0) + '€' : '—'}</div>
+        <div style="flex:1;min-width:56px;display:flex;flex-direction:column;align-items:center;gap:6px;" title="${m.label}: ${m.valor.toFixed(2)}€">
+          <div style="font-size:0.7rem;color:var(--text-2);white-space:nowrap;">${m.valor > 0 ? m.valor.toFixed(0) + '€' : '—'}</div>
           <div style="width:100%;max-width:34px;height:${alto}px;background:var(--blue);border-radius:6px 6px 2px 2px;"></div>
-          <div style="font-size:0.7rem;color:var(--text-2);">${m.label}</div>
+          <div style="font-size:0.7rem;color:var(--text-2);white-space:nowrap;">${m.label}</div>
         </div>`;
     }).join('');
 
@@ -156,8 +156,10 @@ async function loadFinanzas() {
       <!-- Evolución del MRR — últimos 6 meses -->
       <div style="margin-bottom:24px;padding:16px 20px 20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
         <div style="font-size:0.95rem;font-weight:600;margin-bottom:14px;">Evolución del MRR — últimos 6 meses</div>
-        <div style="display:flex;align-items:flex-end;gap:10px;height:100px;padding:0 4px;">
-          ${barrasHtml}
+        <div style="overflow-x:auto;">
+          <div style="display:flex;align-items:flex-end;gap:10px;height:140px;min-width:380px;padding:0 4px;">
+            ${barrasHtml}
+          </div>
         </div>
         <div style="font-size:0.72rem;color:var(--text-3);margin-top:12px;">Aproximado a partir de las facturas de planes emitidas cada mes.</div>
       </div>
