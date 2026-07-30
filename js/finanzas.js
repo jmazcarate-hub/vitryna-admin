@@ -218,8 +218,14 @@ async function loadFinanzas() {
         const importe = f.importe_total != null
           ? Number(f.importe_total).toFixed(2).replace('.', ',') + ' €'
           : '—';
-        const pdf = f.url_pdf
-          ? `<a href="${f.url_pdf}" target="_blank" style="color:var(--blue);font-size:0.82rem;display:inline-flex;align-items:center;gap:4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>PDF</a>`
+        // Facturas nuevas: enlace estable (facturaId+token) que resuelve una signed URL
+        // al vuelo en descargarFactura — el PDF ya no es público en Storage.
+        // Facturas antiguas (sin download_token) conservan su url_pdf pública original.
+        const pdfUrl = f.download_token
+          ? `https://europe-west1-mi-barrio-vivo-ba557.cloudfunctions.net/descargarFactura?facturaId=${d.id}&token=${f.download_token}`
+          : f.url_pdf;
+        const pdf = pdfUrl
+          ? `<a href="${pdfUrl}" target="_blank" style="color:var(--blue);font-size:0.82rem;display:inline-flex;align-items:center;gap:4px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>PDF</a>`
           : '—';
         return `<tr>
           <td style="font-weight:500;color:var(--blue)">${f.numero || '—'}</td>
