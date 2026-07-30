@@ -641,11 +641,12 @@ async function cargarActivacionSegundaPublicacion() {
 // ── KPI: CUENTAS (VECINOS + COMERCIOS) CON AL MENOS UN AMIGO AÑADIDO ──
 // toggleAmigo es válido tanto para vecinos como para comercios que siguen a
 // otros comercios (un comercio también tiene su propio doc en usuarios/{uid}
-// con su lista de amigos) — así que aquí no se distingue entre unos y otros,
-// solo se excluye la cuenta de admin.
+// con su lista de amigos) — así que aquí no se distingue entre unos y otros.
+// El admin ya no tiene ningún doc en usuarios (su autoridad es el custom
+// claim de Firebase Auth), así que no hace falta excluirlo aquí.
 async function cargarKpiCuentasConAmigo() {
   const snap = await db.collection('usuarios').get();
-  const cuentas = snap.docs.filter(doc => doc.data().rol !== 'admin');
+  const cuentas = snap.docs;
   const total = cuentas.length;
 
   const comercios = cuentas.filter(doc => doc.data().rol === 'comercio');

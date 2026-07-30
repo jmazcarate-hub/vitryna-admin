@@ -65,8 +65,11 @@ document.getElementById('btn-login').addEventListener('click', async () => {
   btn.textContent = 'Entrando...'; btn.disabled = true;
   try {
     const cred = await auth.signInWithEmailAndPassword(email, pass);
-    const doc  = await db.collection('usuarios').doc(cred.user.uid).get();
-    if (!doc.exists || doc.data().rol !== 'admin') {
+    // La autoridad es el custom claim de Firebase Auth (admin:true), no un
+    // documento de Firestore -- signInWithEmailAndPassword ya emite un token
+    // fresco, así que el claim viene actualizado sin necesitar forzar refresh.
+    const idTokenResult = await cred.user.getIdTokenResult();
+    if (!idTokenResult.claims.admin) {
       await auth.signOut();
       throw new Error('Esta cuenta no tiene permisos de administrador.');
     }
