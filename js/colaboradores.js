@@ -29,22 +29,22 @@ function renderColabs() {
     return `<div class="colab-card">
       <div class="colab-header">
         <div class="colab-logo-box">
-          ${c.logo_url ? `<img src="${c.logo_url}" alt="${c.nombre}" onerror="this.parentElement.textContent='🏢'">` : '🏢'}
+          ${c.logo_url ? `<img src="${escapeHtml(c.logo_url)}" alt="${escapeHtml(c.nombre)}" onerror="this.parentElement.textContent='🏢'">` : '🏢'}
         </div>
         <div>
-          <div class="colab-name">${c.nombre || '—'}</div>
+          <div class="colab-name">${escapeHtml(c.nombre) || '—'}</div>
           <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
             <span class="badge nivel-${nivel}">Nivel ${nivel} · ${nivelNombre[nivel] || ''}</span>
             <span class="badge ${activo ? 'activo' : 'inactivo'}">${activo ? 'Activo' : 'Inactivo'}</span>
           </div>
         </div>
       </div>
-      ${c.descripcion ? `<div class="colab-desc">${c.descripcion}</div>` : ''}
-      ${c.web ? `<a href="${c.web}" target="_blank" rel="noopener" style="font-size:0.75rem;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${c.web}</a>` : ''}
+      ${c.descripcion ? `<div class="colab-desc">${escapeHtml(c.descripcion)}</div>` : ''}
+      ${c.web ? `<a href="${escapeHtml(c.web)}" target="_blank" rel="noopener" style="font-size:0.75rem;color:var(--blue);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${escapeHtml(c.web)}</a>` : ''}
       <div style="font-size:0.72rem;color:var(--text-3)">Alta: ${formatDate(c.creado_en)}</div>
       <div class="colab-actions">
         <button class="btn-sm" style="flex:1" onclick="abrirModalColabEditar('${c.id}')">Editar</button>
-        <button class="btn-sm danger" onclick="eliminarColab('${c.id}','${(c.nombre || '').replace(/'/g, "\\'")}')">Eliminar</button>
+        <button class="btn-sm danger" onclick="eliminarColab('${c.id}')">Eliminar</button>
       </div>
     </div>`;
   }).join('')}</div>`;
@@ -109,7 +109,8 @@ async function guardarColaborador() {
   finally { btn.textContent = 'Guardar'; btn.disabled = false; }
 }
 
-async function eliminarColab(id, nombre) {
+async function eliminarColab(id) {
+  const nombre = todosColabs.find(c => c.id === id)?.nombre || '';
   if (!confirm(`¿Eliminar el colaborador "${nombre}"?`)) return;
   try {
     await db.collection('colaboradores').doc(id).delete();

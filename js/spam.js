@@ -159,7 +159,7 @@ function renderGrupoComercioSpam(comercioId, grupo) {
     <div style="border-bottom:1px solid var(--border);">
       <div style="padding:12px 20px;background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <strong style="font-size:0.88rem;">${nombreComercio}</strong>
+          <strong style="font-size:0.88rem;">${escapeHtml(nombreComercio)}</strong>
           <span class="badge inactivo">${grupo.length} incidencia${grupo.length !== 1 ? 's' : ''}</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
@@ -184,7 +184,7 @@ function fotoThumbSpam(pub, idx) {
   if (!src) {
     return `<div style="width:44px;height:44px;border-radius:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:0.7rem;">—</div>`;
   }
-  return `<img src="${src}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer;" onclick="abrirFotoSpam(${idx})" title="Ver en grande">`;
+  return `<img src="${escapeHtml(src)}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer;" onclick="abrirFotoSpam(${idx})" title="Ver en grande">`;
 }
 
 // ── Lightbox de comparación de fotos ─────────────────────────────────────────
@@ -197,9 +197,9 @@ function abrirFotoSpam(idx) {
       <div style="flex:1;min-width:240px;">
         <div style="font-size:0.75rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">${etiqueta}</div>
         ${src
-          ? `<img src="${src}" style="width:100%;border-radius:12px;border:1px solid var(--border);object-fit:cover;max-height:420px;">`
+          ? `<img src="${escapeHtml(src)}" style="width:100%;border-radius:12px;border:1px solid var(--border);object-fit:cover;max-height:420px;">`
           : `<div style="width:100%;height:240px;border-radius:12px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text-3);">Sin foto</div>`}
-        <div style="margin-top:8px;font-size:0.85rem;font-weight:500;">${pub.titulo || '—'}</div>
+        <div style="margin-top:8px;font-size:0.85rem;font-weight:500;">${escapeHtml(pub.titulo) || '—'}</div>
         <div style="font-size:0.78rem;color:var(--text-3);margin-top:2px;">${formatDateHoraSpam(pub.timestamp)}</div>
       </div>`;
   };
@@ -229,11 +229,11 @@ function renderFilaIncidenciaSpam(inc) {
   return `<tr>
     <td>${fotoThumbSpam(anterior, idx)}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.83rem;">
-      ${anterior.titulo || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDateHoraSpam(anterior.timestamp)}</span>
+      ${escapeHtml(anterior.titulo) || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDateHoraSpam(anterior.timestamp)}</span>
     </td>
     <td>${fotoThumbSpam(actual, idx)}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.83rem;">
-      ${actual.titulo || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDateHoraSpam(actual.timestamp)}</span>
+      ${escapeHtml(actual.titulo) || '—'}<br><span style="font-size:0.72rem;color:var(--text-3)">${formatDateHoraSpam(actual.timestamp)}</span>
     </td>
     <td>${motivos}</td>
     <td><button class="btn-sm danger" onclick="eliminarPubSpam('${actual.id}', this)">Eliminar nueva</button></td>

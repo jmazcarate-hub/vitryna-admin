@@ -13,6 +13,19 @@ const db   = firebase.firestore();
 auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
 
 // ── UTILS (globales para todos los módulos) ──
+// Cualquier campo que venga de un documento de Firestore (comercios,
+// Publicaciones, usuarios...) puede contener HTML arbitrario -- las reglas
+// de Firestore restringen qué campos escribe un comercio, no qué valor
+// tiene cada uno. Escapar siempre antes de interpolar en innerHTML.
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 function toast(msg, type = '') {
   const t = document.getElementById('toast');
   t.textContent = msg;

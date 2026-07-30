@@ -3,6 +3,7 @@ const VECINOS_POR_PAGINA = 50;
 // Pila de cursores: [undefined, doc1, doc2, ...] donde undefined = primera página
 let _vecinosCursores = [undefined];
 let _vecinosPagina   = 0;
+let _vecinosActuales = []; // cache de la página actual, para no meter el email en el onclick
 
 async function loadVecinos(pagina = 0) {
   _vecinosPagina = pagina;
@@ -32,6 +33,7 @@ async function loadVecinos(pagina = 0) {
     const vecinos = docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(v => v.email);
+    _vecinosActuales = vecinos;
 
     const desde = pagina * VECINOS_POR_PAGINA + 1;
     const hasta = desde + vecinos.length - 1;
@@ -49,14 +51,14 @@ async function loadVecinos(pagina = 0) {
         : `<table>
         <thead><tr><th>Email</th><th>Amigos</th><th>Notificaciones push</th><th>Registro</th><th></th></tr></thead>
         <tbody>${vecinos.map(v => `<tr>
-          <td>${v.email}</td>
+          <td>${escapeHtml(v.email)}</td>
           <td>${(v.amigos || []).length}</td>
           <td>${v.fcm_token
             ? '<span class="badge activo">Activas</span>'
             : '<span class="badge free">Sin token</span>'
           }</td>
           <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(v.creado_en)}</td>
-          <td><button class="btn-sm danger" onclick="eliminarVecino('${v.id}','${v.email}')">Eliminar</button></td>
+          <td><button class="btn-sm danger" onclick="eliminarVecino('${v.id}')">Eliminar</button></td>
         </tr>`).join('')}</tbody>
       </table>`}`;
   } catch (e) {
@@ -65,7 +67,8 @@ async function loadVecinos(pagina = 0) {
   }
 }
 
-async function eliminarVecino(uid, email) {
+async function eliminarVecino(uid) {
+  const email = _vecinosActuales.find(v => v.id === uid)?.email || '';
   if (!confirm(`¿Eliminar el vecino "${email}"?\n\nSe eliminará su cuenta, sus datos y se quitará de la lista de amigos de los comercios que seguía. Esta acción no se puede deshacer.`)) return;
   try {
     const fn = firebase.app().functions('europe-west1').httpsCallable('eliminarVecinoCompleto');

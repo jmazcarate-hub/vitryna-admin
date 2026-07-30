@@ -141,8 +141,8 @@ function renderComercios() {
           ? `<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:${cancelada ? 'var(--red-light)' : 'var(--green-light)'};color:${cancelada ? 'var(--red)' : 'var(--green)'};">${cancelada ? 'Cancelada' : 'Activa'}</span>`
           : '<span style="font-size:0.72rem;color:var(--text-3);">Manual</span>';
         return `<tr>
-          <td><div style="font-weight:500">${c.nombre_comercio || '—'}</div><div style="font-size:0.75rem;color:var(--text-2)">${c.email || '—'}</div><div style="font-size:0.75rem;color:var(--text-3)">${c.telefono || '—'}</div></td>
-          <td style="color:var(--text-2);font-size:0.83rem">${c.categoria || '—'}</td>
+          <td><div style="font-weight:500">${escapeHtml(c.nombre_comercio) || '—'}</div><div style="font-size:0.75rem;color:var(--text-2)">${escapeHtml(c.email) || '—'}</div><div style="font-size:0.75rem;color:var(--text-3)">${escapeHtml(c.telefono) || '—'}</div></td>
+          <td style="color:var(--text-2);font-size:0.83rem">${escapeHtml(c.categoria) || '—'}</td>
           <td><span class="badge ${plan}">${plan.toUpperCase()}</span>${c.saturado ? `<div style="margin-top:4px;"><span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;">Saturado ${c.diasSaturado} de ${c.diasDesdeAlta}d</span></div>` : ''}</td>
           <td><span class="${vi.clase}">${vi.texto}</span></td>
           <td>${stripeTag}</td>
@@ -366,7 +366,7 @@ async function renovarPlanComercio() {
     overlay.innerHTML = `
       <div style="background:var(--surface);border-radius:16px;padding:24px;width:360px;max-width:90vw;">
         <div style="font-size:1rem;font-weight:600;margin-bottom:4px;">Renovar plan</div>
-        <div style="font-size:0.83rem;color:var(--text-2);margin-bottom:16px;">${c.nombre_comercio} · ${planNombre}</div>
+        <div style="font-size:0.83rem;color:var(--text-2);margin-bottom:16px;">${escapeHtml(c.nombre_comercio)} · ${planNombre}</div>
         <div style="display:flex;flex-direction:column;gap:8px;">
           <button data-res="renovar" class="btn-primary" style="padding:11px;">Renovar (+30 días)</button>
           <button data-res="piloto" class="btn-secondary" style="padding:11px;border-color:var(--orange);color:var(--orange);">🚀 Piloto hasta 31 Dic 2026</button>
@@ -473,15 +473,15 @@ function renderBajas() {
         const motivoTexto = c.motivo_baja ? (motivoLabels[c.motivo_baja] || c.motivo_baja) : '—';
         return `<tr>
           <td>
-            <div style="font-weight:500">${c.nombre_comercio || '—'}</div>
-            <div style="font-size:0.75rem;color:var(--text-2)">${c.email || '—'}</div>
-            <div style="font-size:0.75rem;color:var(--text-3)">${c.telefono || '—'}</div>
+            <div style="font-weight:500">${escapeHtml(c.nombre_comercio) || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-2)">${escapeHtml(c.email) || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-3)">${escapeHtml(c.telefono) || '—'}</div>
           </td>
           <td><span class="badge ${plan}">${plan.toUpperCase()}</span></td>
-          <td style="font-size:0.83rem;color:var(--text-2)">${c.barrio || '—'}</td>
+          <td style="font-size:0.83rem;color:var(--text-2)">${escapeHtml(c.barrio) || '—'}</td>
           <td><span class="${vi.clase}" style="font-size:0.8rem;">${vi.texto}</span></td>
           <td style="font-size:0.8rem;${c.motivo_baja ? 'color:var(--orange);font-weight:500' : 'color:var(--text-3)'}">
-            ${motivoTexto}
+            ${escapeHtml(motivoTexto)}
             ${c.motivo_baja && c.fecha_encuesta ? `<div style="font-size:0.72rem;color:var(--text-3);font-weight:400;">${formatDate(c.fecha_encuesta)}</div>` : ''}
           </td>
           <td style="font-size:0.8rem;${yaEnviado ? 'color:var(--green)' : 'color:var(--text-3)'}">
@@ -559,15 +559,15 @@ function renderRetenciones() {
         const motivoTexto = r.motivo ? (motivoLabels[r.motivo] || r.motivo) : '—';
         return `<tr>
           <td>
-            <div style="font-weight:500">${r.nombre_comercio || c?.nombre_comercio || '—'}</div>
-            <div style="font-size:0.75rem;color:var(--text-2)">${r.email || c?.email || '—'}</div>
-            <div style="font-size:0.75rem;color:var(--text-3)">${c?.telefono || '—'}</div>
+            <div style="font-weight:500">${escapeHtml(r.nombre_comercio || c?.nombre_comercio) || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-2)">${escapeHtml(r.email || c?.email) || '—'}</div>
+            <div style="font-size:0.75rem;color:var(--text-3)">${escapeHtml(c?.telefono) || '—'}</div>
           </td>
           <td>${plan !== '—' ? `<span class="badge ${plan}">${plan.toUpperCase()}</span>` : '—'}</td>
-          <td style="font-size:0.83rem;color:var(--text-2)">${barrio}</td>
+          <td style="font-size:0.83rem;color:var(--text-2)">${escapeHtml(barrio)}</td>
           <td><span class="${vi.clase}" style="font-size:0.8rem;">${vi.texto}</span></td>
           <td style="font-size:0.8rem;${r.motivo ? 'color:var(--orange);font-weight:500' : 'color:var(--text-3)'}">
-            ${motivoTexto}
+            ${escapeHtml(motivoTexto)}
             ${r.motivo && r.fecha_respuesta ? `<div style="font-size:0.72rem;color:var(--text-3);font-weight:400;">${formatDate(r.fecha_respuesta)}</div>` : ''}
           </td>
           <td style="font-size:0.8rem;color:var(--green);">

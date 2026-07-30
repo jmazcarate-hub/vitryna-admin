@@ -93,8 +93,8 @@ async function loadDashboard() {
     const recCom = [...comercios].sort((a, b) => (b.creado_en?.seconds || 0) - (a.creado_en?.seconds || 0)).slice(0, 5);
     document.getElementById('recientes-comercios').innerHTML = recCom.map(c => `
       <div class="recent-item">
-        <div class="recent-avatar">${(c.nombre_comercio || '?')[0].toUpperCase()}</div>
-        <div><div class="recent-name">${c.nombre_comercio || '—'}</div><div class="recent-meta">${c.categoria || ''} · ${c.barrio || ''}</div></div>
+        <div class="recent-avatar">${escapeHtml((c.nombre_comercio || '?')[0].toUpperCase())}</div>
+        <div><div class="recent-name">${escapeHtml(c.nombre_comercio) || '—'}</div><div class="recent-meta">${escapeHtml(c.categoria)} · ${escapeHtml(c.barrio)}</div></div>
         <span class="recent-time">${timeAgo(c.creado_en)}</span>
       </div>`).join('') || '<div class="empty">Sin comercios</div>';
 
@@ -103,8 +103,8 @@ async function loadDashboard() {
       .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).slice(0, 5);
     document.getElementById('recientes-pubs').innerHTML = pubsRecientes.map(p => `
       <div class="recent-item">
-        <div class="recent-avatar" style="background:var(--green-light);color:var(--green)">${(p.nombre_comercio || '?')[0].toUpperCase()}</div>
-        <div><div class="recent-name">${p.titulo || '—'}</div><div class="recent-meta">${p.nombre_comercio || ''}</div></div>
+        <div class="recent-avatar" style="background:var(--green-light);color:var(--green)">${escapeHtml((p.nombre_comercio || '?')[0].toUpperCase())}</div>
+        <div><div class="recent-name">${escapeHtml(p.titulo) || '—'}</div><div class="recent-meta">${escapeHtml(p.nombre_comercio)}</div></div>
         <span class="recent-time">${timeAgo(p.timestamp)}</span>
       </div>`).join('') || '<div class="empty">Sin publicaciones</div>';
 

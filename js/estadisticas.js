@@ -293,7 +293,7 @@ async function cargarTopComercios() {
     <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
       <div style="width:22px;height:22px;border-radius:6px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;color:var(--blue);flex-shrink:0;">${i+1}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre}</div>
+        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.nombre)}</div>
         <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
           <div style="height:100%;width:${Math.round(c.vistas/maxV*100)}%;background:var(--blue);border-radius:2px;"></div>
         </div>
@@ -313,8 +313,8 @@ async function cargarTopPublicaciones() {
     <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
       <div style="width:22px;height:22px;border-radius:6px;background:var(--orange-light);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;color:var(--orange);flex-shrink:0;">${i+1}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.titulo || '—'}</div>
-        <div style="font-size:0.72rem;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre_comercio || ''}</div>
+        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.titulo) || '—'}</div>
+        <div style="font-size:0.72rem;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.nombre_comercio)}</div>
         <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
           <div style="height:100%;width:${Math.round((p.clics||0)/maxC*100)}%;background:var(--orange);border-radius:2px;"></div>
         </div>
@@ -375,7 +375,7 @@ async function cargarRankingActividad() {
       <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
         <div style="width:22px;height:22px;border-radius:6px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;color:var(--blue);flex-shrink:0;">${i+1}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre}</div>
+          <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.nombre)}</div>
           <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
             <div style="height:100%;width:${Math.round(c.pubs30/maxPubs*100)}%;background:var(--blue);border-radius:2px;"></div>
           </div>
@@ -399,7 +399,7 @@ async function cargarRankingActividad() {
       return `
       <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nombre}</div>
+          <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.nombre)}</div>
           <div style="font-size:0.72rem;color:var(--text-3);margin-top:2px;">${ultimoRecordatorio ? 'Recordatorio enviado: ' + formatDate(ultimoRecordatorio) : 'Sin recordatorio enviado'}</div>
         </div>
         <div style="font-size:0.75rem;padding:2px 8px;border-radius:12px;background:${colorLight};color:${color};font-weight:600;flex-shrink:0;">${etiqueta}</div>
@@ -562,7 +562,7 @@ async function cargarComerciosPorBarrio() {
   el.innerHTML = lista.map(b => `
     <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.barrio}</div>
+        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(b.barrio)}</div>
         <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
           <div style="height:100%;width:${Math.round(b.count/maxC*100)}%;background:var(--blue);border-radius:2px;"></div>
         </div>
@@ -589,7 +589,7 @@ async function cargarComerciosPorCategoria() {
   el.innerHTML = lista.map(c => `
     <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.categoria}</div>
+        <div style="font-size:0.85rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.categoria)}</div>
         <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
           <div style="height:100%;width:${Math.round(c.count/maxC*100)}%;background:var(--orange);border-radius:2px;"></div>
         </div>

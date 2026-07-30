@@ -230,8 +230,8 @@ async function loadFinanzas() {
         return `<tr>
           <td style="font-weight:500;color:var(--blue)">${f.numero || '—'}</td>
           <td>${fecha}</td>
-          <td>${f.nombre_comercio || '—'}</td>
-          <td style="color:var(--text-2);font-size:0.82rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.concepto || '—'}</td>
+          <td>${escapeHtml(f.nombre_comercio) || '—'}</td>
+          <td style="color:var(--text-2);font-size:0.82rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.concepto) || '—'}</td>
           <td style="font-weight:600">${importe}</td>
           <td>${pdf}</td>
         </tr>`;
@@ -277,7 +277,7 @@ async function loadResumenStripe() {
 
     const filaPago = p => `<tr style="border-bottom:1px solid var(--border);">
       <td style="padding:7px 10px;font-size:0.82rem;">${new Date(p.fecha).toLocaleDateString('es-ES')}</td>
-      <td style="padding:7px 10px;font-size:0.82rem;color:var(--text-2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.descripcion || '—'}</td>
+      <td style="padding:7px 10px;font-size:0.82rem;color:var(--text-2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.descripcion) || '—'}</td>
       <td style="padding:7px 10px;font-size:0.82rem;text-align:right;font-weight:600;">${p.importe.toFixed(2)} ${p.moneda.toUpperCase()}</td>
       <td style="padding:7px 10px;font-size:0.78rem;color:${p.estado === 'succeeded' ? 'var(--green)' : 'var(--text-2)'};">${p.estado}</td>
     </tr>`;
@@ -285,7 +285,7 @@ async function loadResumenStripe() {
     const filaDisputa = d => `<tr style="border-bottom:1px solid var(--border);">
       <td style="padding:7px 10px;font-size:0.82rem;">${new Date(d.fecha).toLocaleDateString('es-ES')}</td>
       <td style="padding:7px 10px;font-size:0.82rem;text-align:right;font-weight:600;">${d.importe.toFixed(2)} ${d.moneda.toUpperCase()}</td>
-      <td style="padding:7px 10px;font-size:0.78rem;color:var(--orange);">${d.motivo || '—'}</td>
+      <td style="padding:7px 10px;font-size:0.78rem;color:var(--orange);">${escapeHtml(d.motivo) || '—'}</td>
       <td style="padding:7px 10px;font-size:0.78rem;color:var(--text-2);">${d.estado}</td>
     </tr>`;
 

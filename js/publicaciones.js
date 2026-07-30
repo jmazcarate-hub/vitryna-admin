@@ -102,8 +102,8 @@ function renderPubs() {
         const tiempo = tiempoRelativo(p.timestamp);
         const fechaCompleta = formatDate(p.timestamp);
         return `<tr>
-          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${p.titulo || '—'}</td>
-          <td style="font-size:0.83rem;color:var(--text-2)">${p.nombre_comercio || '—'}</td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">${escapeHtml(p.titulo) || '—'}</td>
+          <td style="font-size:0.83rem;color:var(--text-2)">${escapeHtml(p.nombre_comercio) || '—'}</td>
           <td>${badge}</td>
           <td style="font-size:0.8rem;" title="${fechaCompleta}">${tiempo}</td>
           <td style="font-family:'DM Mono',monospace;font-size:0.8rem">${p.vistas || 0}</td>

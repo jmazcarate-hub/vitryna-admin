@@ -270,10 +270,10 @@ function renderBarrios() {
   el.innerHTML = _barrios.map(b => `
     <span style="display:inline-flex;align-items:center;gap:6px;background:var(--blue-light,#e8f0ff);color:var(--blue);
       border:1.5px solid var(--blue);border-radius:20px;padding:4px 12px;font-size:0.83rem;font-weight:500;">
-      ${b}
-      <span onclick="eliminarBarrio('${b.replace(/'/g, "\\'")}')"
+      ${escapeHtml(b)}
+      <span onclick="eliminarBarrio('${encodeURIComponent(b)}')"
         style="cursor:pointer;font-size:1rem;line-height:1;color:var(--blue);opacity:0.6;"
-        title="Eliminar ${b}">×</span>
+        title="Eliminar ${escapeHtml(b)}">×</span>
     </span>`).join('');
 }
 
@@ -292,7 +292,7 @@ async function añadirPoblacion() {
     _poblaciones = [..._poblaciones, poblacion].sort((a, b) => a.localeCompare(b, 'es'));
     input.value = '';
     const sel = document.getElementById('cfg-poblacion-sel');
-    sel.innerHTML = _poblaciones.map(p => `<option value="${p}"${p===poblacion?' selected':''}>${p}</option>`).join('');
+    sel.innerHTML = _poblaciones.map(p => `<option value="${escapeHtml(p)}"${p===poblacion?' selected':''}>${escapeHtml(p)}</option>`).join('');
     _poblacionActual = poblacion;
     _barrios = [];
     renderBarrios();
@@ -319,7 +319,8 @@ async function añadirBarrio() {
   } catch(e) { toast('Error al guardar', 'error'); }
 }
 
-async function eliminarBarrio(barrio) {
+async function eliminarBarrio(barrioEncoded) {
+  const barrio = decodeURIComponent(barrioEncoded);
   if (!confirm(`¿Eliminar "${barrio}" de ${_poblacionActual}?`)) return;
   try {
     await db.collection('config').doc(_poblacionActual).update({
@@ -368,10 +369,10 @@ function renderNifsPioneros() {
       </tr></thead>
       <tbody>${_nifsPioneros.map((item, i) => `
         <tr style="${i % 2 === 0 ? 'background:var(--bg);' : ''}border-bottom:1px solid var(--border);">
-          <td style="padding:7px 10px;font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--blue);">${item.nif}</td>
-          <td style="padding:7px 10px;color:var(--text-1);">${item.nombre || '<span style="color:var(--text-3)">—</span>'}</td>
+          <td style="padding:7px 10px;font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--blue);">${escapeHtml(item.nif)}</td>
+          <td style="padding:7px 10px;color:var(--text-1);">${escapeHtml(item.nombre) || '<span style="color:var(--text-3)">—</span>'}</td>
           <td style="padding:7px 10px;text-align:right;">
-            <span onclick="eliminarNifPionero('${item.nif}')" style="cursor:pointer;color:var(--red);font-size:0.8rem;font-weight:600;">Eliminar</span>
+            <span onclick="eliminarNifPionero('${encodeURIComponent(item.nif)}')" style="cursor:pointer;color:var(--red);font-size:0.8rem;font-weight:600;">Eliminar</span>
           </td>
         </tr>`).join('')}
       </tbody>
@@ -401,7 +402,8 @@ async function añadirNifPionero() {
   } catch(e) { toast('Error al guardar', 'error'); }
 }
 
-async function eliminarNifPionero(nif) {
+async function eliminarNifPionero(nifEncoded) {
+  const nif = decodeURIComponent(nifEncoded);
   if (!confirm(`¿Eliminar el NIF ${nif} de la lista premium?`)) return;
   _nifsPioneros = _nifsPioneros.filter(i => i.nif !== nif);
   try {
