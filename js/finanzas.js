@@ -5,7 +5,7 @@ async function loadFinanzas() {
     const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
     const inicioVentana6m = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
 
-    const [snap, paramSnap, facturacionDoc, facVentanaSnap] = await Promise.all([
+    const [snap, paramSnap, facturacionDoc, facVentanaSnap, facErrorSnap] = await Promise.all([
       db.collection('comercios').get(),
       db.collection('config').doc('parametros').get(),
       db.collection('config').doc('facturacion').get(),
@@ -13,8 +13,16 @@ async function loadFinanzas() {
         .where('fecha', '>=', firebase.firestore.Timestamp.fromDate(inicioVentana6m))
         .orderBy('fecha', 'asc')
         .get(),
+      // Sin orderBy server-side para no requerir un índice compuesto nuevo
+      // solo para esta tabla -- se ordena en cliente, volumen esperado bajo.
+      db.collection('facturas_pendientes').where('estado', '==', 'error').get(),
     ]);
     const paramData   = paramSnap.data() || {};
+    const nombresComercio = {};
+    snap.docs.forEach(d => { nombresComercio[d.id] = d.data().nombre_comercio || d.id; });
+    const facturasError = facErrorSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.creadoEn?.toMillis?.() || 0) - (a.creadoEn?.toMillis?.() || 0));
     const precioPro   = paramData.precio_plan_pro   || 19.90;
     const precioMulti = paramData.precio_plan_multi  || 15.98;
     const coms  = snap.docs.map(d => d.data());
@@ -197,6 +205,47 @@ async function loadFinanzas() {
         </div>
       </div>
 
+      <!-- Facturas con error -->
+      <div style="margin-bottom:28px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+        <div style="font-size:0.95rem;font-weight:600;margin-bottom:4px;${facturasError.length ? 'color:var(--orange);' : ''}">
+          ⚠️ Facturas con error${facturasError.length ? ` (${facturasError.length})` : ''}
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
+          Cobros en Stripe ya realizados cuya factura no se pudo generar automáticamente. Se avisa por email a admin@vitryna.app en cuanto ocurre.
+        </div>
+        ${facturasError.length ? `
+        <div style="overflow-x:auto;">
+        <table style="width:100%;min-width:640px;border-collapse:collapse;font-size:0.84rem;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);color:var(--text-2);font-size:0.78rem;font-weight:500;">
+              <th style="text-align:left;padding:6px 10px;">Fecha</th>
+              <th style="text-align:left;padding:6px 10px;">Comercio</th>
+              <th style="text-align:left;padding:6px 10px;">Concepto</th>
+              <th style="text-align:right;padding:6px 10px;">Importe</th>
+              <th style="text-align:left;padding:6px 10px;">Error</th>
+              <th style="text-align:right;padding:6px 10px;">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${facturasError.map(f => `
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:8px 10px;">${f.creadoEn ? formatDate(f.creadoEn) : '—'}</td>
+                <td style="padding:8px 10px;">${escapeHtml(nombresComercio[f.comercioId] || f.comercioId)}</td>
+                <td style="padding:8px 10px;color:var(--text-2);font-size:0.82rem;">${escapeHtml(f.concepto) || '—'}</td>
+                <td style="padding:8px 10px;text-align:right;font-weight:600;">${f.importeTotal != null ? Number(f.importeTotal).toFixed(2) + ' €' : '—'}</td>
+                <td style="padding:8px 10px;color:var(--orange);font-size:0.78rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(f.errorMsg)}">${escapeHtml(f.errorMsg) || '—'}</td>
+                <td style="padding:8px 10px;text-align:right;white-space:nowrap;">
+                  <button class="btn-secondary" style="padding:4px 10px;font-size:0.78rem;" onclick="reintentarFacturaPendiente('${f.id}')">Reintentar</button>
+                  <button class="btn-secondary" style="padding:4px 10px;font-size:0.78rem;border-color:#E53935;color:#E53935;" onclick="descartarFacturaPendiente('${f.id}')">Descartar</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        </div>
+        ` : `<div class="empty" style="padding:10px 0;">Sin errores pendientes</div>`}
+      </div>
+
       <div style="font-size:0.95rem;font-weight:600;color:var(--text);margin-bottom:14px;">Facturas emitidas</div>
       <div id="tabla-facturas-fin"><div class="spinner"></div></div>`;
 
@@ -322,4 +371,29 @@ async function resetContadorAnio() {
     toast(`Contador reseteado para ${anioNuevo}`, 'success');
     loadFinanzas();
   } catch (e) { toast('Error al resetear contador', 'error'); }
+}
+
+async function reintentarFacturaPendiente(docId) {
+  if (!confirm('¿Reintentar generar esta factura? procesarColaFacturas la recogerá en los próximos 5 minutos.')) return;
+  try {
+    // procesarDespuesDe se pone a "ahora" (no se borra): la query de
+    // procesarColaFacturas exige que el campo exista (>= filtro de rango),
+    // así que borrarlo la dejaría invisible para siempre en vez de reintentarla.
+    await db.collection('facturas_pendientes').doc(docId).update({
+      estado: 'pendiente',
+      errorMsg: firebase.firestore.FieldValue.delete(),
+      procesarDespuesDe: firebase.firestore.Timestamp.now(),
+    });
+    toast('Factura marcada para reintento', 'success');
+    loadFinanzas();
+  } catch (e) { toast('Error al reintentar', 'error'); }
+}
+
+async function descartarFacturaPendiente(docId) {
+  if (!confirm('¿Descartar este intento de factura? No se generará ninguna factura para este cobro. Esta acción no se puede deshacer.')) return;
+  try {
+    await db.collection('facturas_pendientes').doc(docId).delete();
+    toast('Descartado', 'success');
+    loadFinanzas();
+  } catch (e) { toast('Error al descartar', 'error'); }
 }
