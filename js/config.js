@@ -38,6 +38,10 @@ async function loadConfig() {
             <div class="config-field-info"><div class="config-field-label">Días saturado para email de invitación a Pro</div><div class="config-field-desc">A partir de estos días saturado (no necesariamente seguidos) se envía un único email invitando a pasar a Pro, hasta que el comercio cambie de plan</div></div>
             <input type="number" class="config-input" id="cfg-dias-saturacion-email" value="${p.dias_saturacion_email_pro ?? 21}" min="1" max="90">
           </div>
+          <div class="config-field">
+            <div class="config-field-info"><div class="config-field-label">Umbral Multi-Barrio</div><div class="config-field-desc">Nº mínimo de comercios con el mismo CIF en Pro/Multi para activar (o mantener) el plan Multi-Barrio</div></div>
+            <input type="number" class="config-input" id="cfg-umbral-multi" value="${p.umbral_multi ?? 5}" min="2" max="50">
+          </div>
         </div>
       </div>
 
@@ -183,6 +187,7 @@ async function guardarConfig() {
       dias_limpieza_publicaciones: parseInt(document.getElementById('cfg-dias-limpieza').value) || 60,
       dias_saturacion_free: parseInt(document.getElementById('cfg-dias-saturacion').value) || 10,
       dias_saturacion_email_pro: parseInt(document.getElementById('cfg-dias-saturacion-email').value) || 21,
+      umbral_multi:          parseInt(document.getElementById('cfg-umbral-multi').value) || 5,
       precio_plan_pro:       parseFloat(document.getElementById('cfg-precio-pro').value) || 19.90,
       precio_plan_multi:     parseFloat(document.getElementById('cfg-precio-multi').value) || 15.98,
       precio_boost4h_5:      parseFloat(document.getElementById('cfg-b4h-5').value) || 5.90,
