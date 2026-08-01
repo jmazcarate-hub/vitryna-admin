@@ -437,12 +437,14 @@ async function activarPilotoComercio() {
   try {
     const hasta = new Date('2026-12-31T23:59:59Z');
     await db.collection('comercios').doc(comercioModalId).update({
+      plan_suscripcion: 'pro',
       plan_hasta: firebase.firestore.Timestamp.fromDate(hasta),
       estado_pago: true,
       subscription_cancelada: false,
     });
     const idx = todosComercios.findIndex(c => c.id === comercioModalId);
     if (idx >= 0) {
+      todosComercios[idx].plan_suscripcion = 'pro';
       todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(hasta);
       todosComercios[idx].subscription_cancelada = false;
     }
