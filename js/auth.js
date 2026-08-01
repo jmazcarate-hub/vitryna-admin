@@ -138,6 +138,7 @@ function ejecutarSeccion(nombre) {
     colaboradores: () => typeof loadColaboradores === 'function' && loadColaboradores(),
     finanzas:      () => typeof loadFinanzas      === 'function' && loadFinanzas(),
     estadisticas:  () => typeof loadEstadisticas === 'function' && loadEstadisticas(),
+    mantenimiento: () => typeof cargarUltimoAnalisisHuerfanos === 'function' && cargarUltimoAnalisisHuerfanos(),
     config:        () => typeof loadConfig        === 'function' && loadConfig(),
   };
   if (fnMap[nombre]) fnMap[nombre]();

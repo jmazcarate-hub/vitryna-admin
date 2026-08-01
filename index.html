@@ -12,7 +12,7 @@
   <style>
     @media print {
       #sidebar, .topbar, #btn-analizar, #btn-limpiar, #btn-imprimir,
-      .table-header button { display: none !important; }
+      #mant-huerfanos-ultima-ejecucion, .table-header button { display: none !important; }
       #main { margin-left: 0 !important; overflow: visible !important; height: auto !important; }
       #section-mantenimiento { display: block !important; }
       .section:not(#section-mantenimiento) { display: none !important; }
@@ -424,11 +424,12 @@
               Analiza la base de datos en busca de datos inconsistentes: publicaciones sin comercio, usuarios sin cuenta,
               referencias rotas en favoritos y fotos en Storage sin documento. Las facturas nunca se borran.
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
               <button class="btn-secondary" id="btn-analizar" onclick="analizarHuerfanos()">🔍 Analizar huérfanos</button>
               <button class="btn-sm danger" id="btn-limpiar" style="display:none" onclick="limpiarHuerfanos()">🗑️ Limpiar huérfanos</button>
               <button class="btn-secondary" id="btn-imprimir" style="display:none" onclick="window.print()">🖨️ Imprimir informe</button>
             </div>
+            <div id="mant-huerfanos-ultima-ejecucion" style="font-size:0.78rem;color:var(--text-3);margin-bottom:16px;">—</div>
             <div id="mant-huerfanos-resultado"></div>
           </div>
 
@@ -537,6 +538,37 @@
 // ── DETECTOR DE HUÉRFANOS ─────────────────────────────────────────────────────
 let _informeHuerfanos = null;
 
+function formatoFechaMant(ts) {
+  if (!ts) return null;
+  return ts.toDate().toLocaleString('es-ES', {
+    day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+  });
+}
+
+async function cargarUltimoAnalisisHuerfanos() {
+  const el = document.getElementById('mant-huerfanos-ultima-ejecucion');
+  try {
+    const doc = await firebase.firestore().collection('config').doc('mantenimiento').get();
+    renderUltimaEjecucionHuerfanos(doc.data() || {});
+  } catch (e) {
+    el.textContent = '—';
+  }
+}
+
+function renderUltimaEjecucionHuerfanos(d) {
+  const el = document.getElementById('mant-huerfanos-ultima-ejecucion');
+  const analizado = formatoFechaMant(d.huerfanos_analizado_en);
+  const limpiado = formatoFechaMant(d.huerfanos_limpiado_en);
+  const partes = [];
+  partes.push(analizado
+    ? `Último análisis: ${analizado}${d.huerfanos_analizado_por ? ' · ' + d.huerfanos_analizado_por : ''}`
+    : 'Sin análisis previo');
+  if (limpiado) {
+    partes.push(`Última limpieza: ${limpiado}${d.huerfanos_limpiado_por ? ' · ' + d.huerfanos_limpiado_por : ''}`);
+  }
+  el.textContent = partes.join('  ·  ');
+}
+
 async function analizarHuerfanos() {
   const el = document.getElementById('mant-huerfanos-resultado');
   const btnLimpiar = document.getElementById('btn-limpiar');
@@ -558,6 +590,7 @@ async function analizarHuerfanos() {
       _informeHuerfanos.fotosHuerfanas.length > 0;
     if (hayLimpiables) btnLimpiar.style.display = '';
     btnImprimir.style.display = '';
+    cargarUltimoAnalisisHuerfanos();
   } catch(e) {
     el.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
   } finally {
@@ -697,6 +730,7 @@ async function limpiarHuerfanos() {
     _informeHuerfanos = null;
     btnLimpiar.style.display = 'none';
     if (typeof toast === 'function') toast('Huérfanos eliminados correctamente', 'success');
+    cargarUltimoAnalisisHuerfanos();
   } catch(e) {
     el.innerHTML += `<div style="color:var(--red);margin-top:8px;">Error: ${e.message}</div>`;
     btnLimpiar.disabled = false;
