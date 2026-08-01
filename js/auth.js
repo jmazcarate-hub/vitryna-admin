@@ -56,6 +56,19 @@ function vencInfo(ts) {
 }
 
 // ── LOGIN ──
+// Timeout explícito -- sin él, si signInWithEmailAndPassword/getIdTokenResult
+// se quedan colgados (red intermitente, o el SDK esperando indefinidamente a
+// que setPersistence termine de escribir en IndexedDB, algo habitual en modo
+// privado o con el almacenamiento particionado del navegador), la promesa
+// nunca resuelve ni rechaza: el catch no llega a ejecutarse nunca y el botón
+// se queda en "Entrando..." para siempre, sin ningún mensaje de error.
+function conTimeout(promise, ms, mensaje) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(mensaje)), ms)),
+  ]);
+}
+
 document.getElementById('btn-login').addEventListener('click', async () => {
   const email = document.getElementById('login-email').value.trim();
   const pass  = document.getElementById('login-pass').value;
@@ -64,11 +77,17 @@ document.getElementById('btn-login').addEventListener('click', async () => {
   err.style.display = 'none';
   btn.textContent = 'Entrando...'; btn.disabled = true;
   try {
-    const cred = await auth.signInWithEmailAndPassword(email, pass);
+    const cred = await conTimeout(
+      auth.signInWithEmailAndPassword(email, pass), 15000,
+      'timeout-login'
+    );
     // La autoridad es el custom claim de Firebase Auth (admin:true), no un
     // documento de Firestore -- signInWithEmailAndPassword ya emite un token
     // fresco, así que el claim viene actualizado sin necesitar forzar refresh.
-    const idTokenResult = await cred.user.getIdTokenResult();
+    const idTokenResult = await conTimeout(
+      cred.user.getIdTokenResult(), 15000,
+      'timeout-login'
+    );
     if (!idTokenResult.claims.admin) {
       await auth.signOut();
       throw new Error('Esta cuenta no tiene permisos de administrador.');
@@ -82,9 +101,11 @@ document.getElementById('btn-login').addEventListener('click', async () => {
     );
     err.textContent = e.message.includes('permisos')
       ? e.message
-      : esCredenciales
-        ? 'Email o contraseña incorrectos.'
-        : 'Error de conexión. Comprueba tu red e inténtalo de nuevo.';
+      : e.message === 'timeout-login'
+        ? 'El inicio de sesión está tardando demasiado. Comprueba tu conexión (o prueba fuera del modo privado/incógnito) e inténtalo de nuevo.'
+        : esCredenciales
+          ? 'Email o contraseña incorrectos.'
+          : 'Error de conexión. Comprueba tu red e inténtalo de nuevo.';
     err.style.display = 'block';
     btn.textContent = 'Entrar'; btn.disabled = false;
   }
