@@ -78,14 +78,14 @@ document.getElementById('btn-login').addEventListener('click', async () => {
   btn.textContent = 'Entrando...'; btn.disabled = true;
   try {
     const cred = await conTimeout(
-      auth.signInWithEmailAndPassword(email, pass), 15000,
+      auth.signInWithEmailAndPassword(email, pass), 5000,
       'timeout-login'
     );
     // La autoridad es el custom claim de Firebase Auth (admin:true), no un
     // documento de Firestore -- signInWithEmailAndPassword ya emite un token
     // fresco, así que el claim viene actualizado sin necesitar forzar refresh.
     const idTokenResult = await conTimeout(
-      cred.user.getIdTokenResult(), 15000,
+      cred.user.getIdTokenResult(), 5000,
       'timeout-login'
     );
     if (!idTokenResult.claims.admin) {
