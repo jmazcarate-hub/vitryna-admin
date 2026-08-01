@@ -68,22 +68,48 @@ function bindFiltrosPeriodoEngagement() {
 }
 
 // ── KPIs GLOBALES ──
+// Vistas/clics combinan stats vivas (Publicaciones, mientras existen) + stats
+// históricas (stats_comercio/*/dias, escritas al consolidar una publicación o
+// comercio borrado) -- igual que informe_mensual.js. Sin esto, en cuanto
+// limpiarPublicacionesAntiguas empiece a borrar publicaciones (pasados
+// dias_limpieza_publicaciones, 60 por defecto), estos totales empezarían a
+// perder silenciosamente todo lo consolidado, pese al texto "en todas las
+// publicaciones". El nº de publicaciones sí se queda solo con las vivas: no
+// existe un contador histórico de publicaciones únicas (num_publicaciones en
+// stats_comercio cuenta días-con-actividad consolidados, no altas distintas).
 async function cargarKpisEngagement() {
-  const snap = await db.collection('Publicaciones').get();
+  const [snap, historicoSnap] = await Promise.all([
+    db.collection('Publicaciones').get(),
+    db.collectionGroup('dias').get(),
+  ]);
   const pubs = snap.docs.map(d => d.data());
-  const totalVistas = pubs.reduce((s, p) => s + (p.vistas || 0), 0);
-  const totalClics  = pubs.reduce((s, p) => s + (p.clics  || 0), 0);
+  let totalVistas = pubs.reduce((s, p) => s + (p.vistas || 0), 0);
+  let totalClics  = pubs.reduce((s, p) => s + (p.clics  || 0), 0);
+  historicoSnap.docs.forEach(d => {
+    const h = d.data();
+    totalVistas += h.vistas || 0;
+    totalClics  += h.clics  || 0;
+  });
   const ctr = totalVistas > 0 ? ((totalClics / totalVistas) * 100).toFixed(1) + '%' : '0%';
   document.getElementById('est-vistas').textContent     = totalVistas.toLocaleString('es-ES');
-  document.getElementById('est-vistas-sub').textContent = 'En todas las publicaciones';
+  document.getElementById('est-vistas-sub').textContent = 'Vivas + históricas (consolidadas al borrar)';
   document.getElementById('est-clics').textContent      = totalClics.toLocaleString('es-ES');
-  document.getElementById('est-clics-sub').textContent  = 'En todas las publicaciones';
+  document.getElementById('est-clics-sub').textContent  = 'Vivas + históricas (consolidadas al borrar)';
   document.getElementById('est-ctr').textContent        = ctr;
   document.getElementById('est-pubs').textContent       = pubs.length;
-  document.getElementById('est-pubs-sub').textContent   = 'Publicaciones registradas';
+  document.getElementById('est-pubs-sub').textContent   = 'Publicaciones activas actualmente';
 }
 
 // ── PUBLICACIONES POR DÍA / SEMANA / MES ──
+// Solo publicaciones vivas: no existe una fuente histórica de "fecha de
+// creación" una vez borrada la publicación -- stats_comercio/*/dias.num_publicaciones
+// cuenta días-con-actividad consolidados (cuántas publicaciones tenían stats
+// ese día), no altas nuevas ese día, así que no es la misma magnitud y no se
+// puede fusionar aquí sin falsear el dato. Las ventanas de semana/mes (12
+// semanas/12 meses) mostrarán una caída hacia cero para los tramos más allá
+// de dias_limpieza_publicaciones (60 días por defecto) en cuanto
+// limpiarPublicacionesAntiguas empiece a borrar publicaciones antiguas --
+// limitación conocida, no un bug pendiente de arreglar.
 async function cargarGraficaPubsDia(periodo = 'dia') {
   const snap = await db.collection('Publicaciones').get();
   const pubs = snap.docs.map(d => d.data()).filter(p => p.timestamp);
@@ -190,15 +216,30 @@ async function cargarGraficaRegistros() {
   });
 }
 
-// ── VISTAS Y CLICS POR DÍA / SEMANA / MES — IDs de stats_diarias: YYYY-MM-DD ──
+// ── VISTAS Y CLICS POR DÍA / SEMANA / MES — IDs de stats_diarias y de
+// stats_comercio/*/dias comparten formato YYYY-MM-DD, así que se fusionan en
+// el mismo mapa antes de agrupar por período ──
 async function cargarGraficaEngagement(periodo = 'dia') {
-  // Una sola collectionGroup query (sin filtro de fecha) en lugar de N+1 queries
+  // Dos collectionGroup queries (sin filtro de fecha) en lugar de N+1 queries
   // por publicación — sirve igual para día, semana o mes, solo cambia cómo se
-  // agrupan luego los mismos datos.
-  const statsSnap = await db.collectionGroup('stats_diarias').get();
+  // agrupan luego los mismos datos. stats_diarias = stats vivas (mientras la
+  // publicación existe); dias = stats históricas (consolidadas al borrar una
+  // publicación o comercio) — sin la segunda, las ventanas de semana/mes (12
+  // semanas/12 meses) perderían todo lo anterior a dias_limpieza_publicaciones
+  // (60 días por defecto) en cuanto limpiarPublicacionesAntiguas empiece a
+  // borrar publicaciones antiguas.
+  const [statsSnap, historicoSnap] = await Promise.all([
+    db.collectionGroup('stats_diarias').get(),
+    db.collectionGroup('dias').get(),
+  ]);
   const mapaVistas = {};
   const mapaClics  = {};
   statsSnap.docs.forEach(s => {
+    const d = s.data();
+    mapaVistas[s.id] = (mapaVistas[s.id] || 0) + (d.vistas || 0);
+    mapaClics[s.id]  = (mapaClics[s.id]  || 0) + (d.clics  || 0);
+  });
+  historicoSnap.docs.forEach(s => {
     const d = s.data();
     mapaVistas[s.id] = (mapaVistas[s.id] || 0) + (d.vistas || 0);
     mapaClics[s.id]  = (mapaClics[s.id]  || 0) + (d.clics  || 0);
@@ -275,8 +316,18 @@ async function cargarGraficaEngagement(periodo = 'dia') {
 }
 
 // ── TOP 5 COMERCIOS POR VISTAS ──
+// Combina stats vivas (Publicaciones) + históricas (stats_comercio/*/dias) por
+// comercio -- a diferencia de "top publicaciones", aquí sí se puede fusionar
+// con garantías porque el histórico ya viene agregado por comercio, no por
+// publicación individual. Un comercio con publicaciones históricas ya
+// borradas puede no tener nombre en ninguna Publicación viva; se recupera de
+// stats_comercio/{uid} (nombre_comercio), que siempre se escribe al consolidar.
 async function cargarTopComercios() {
-  const snap = await db.collection('Publicaciones').get();
+  const [snap, historicoSnap, statsComercioSnap] = await Promise.all([
+    db.collection('Publicaciones').get(),
+    db.collectionGroup('dias').get(),
+    db.collection('stats_comercio').get(),
+  ]);
   const porComercio = {};
   snap.docs.forEach(doc => {
     const d = doc.data();
@@ -285,6 +336,19 @@ async function cargarTopComercios() {
     porComercio[id].vistas += d.vistas || 0;
     porComercio[id].clics  += d.clics  || 0;
   });
+  historicoSnap.docs.forEach(doc => {
+    const id = doc.ref.parent.parent.id;
+    const d = doc.data();
+    if (!porComercio[id]) porComercio[id] = { nombre: null, vistas: 0, clics: 0 };
+    porComercio[id].vistas += d.vistas || 0;
+    porComercio[id].clics  += d.clics  || 0;
+  });
+  statsComercioSnap.docs.forEach(doc => {
+    if (porComercio[doc.id] && !porComercio[doc.id].nombre) {
+      porComercio[doc.id].nombre = doc.data().nombre_comercio || '—';
+    }
+  });
+  Object.values(porComercio).forEach(c => { if (!c.nombre) c.nombre = '—'; });
   const top = Object.values(porComercio).sort((a, b) => b.vistas - a.vistas).slice(0, 5);
   const el = document.getElementById('top-comercios');
   if (!top.length) { el.innerHTML = '<div class="empty">Sin datos todavía</div>'; return; }
@@ -303,6 +367,10 @@ async function cargarTopComercios() {
 }
 
 // ── TOP 5 PUBLICACIONES POR CLICS ──
+// Solo publicaciones vivas: stats_comercio consolida por comercio+día, no por
+// publicación individual, así que una publicación borrada no se puede
+// reconstruir aquí aunque hubiera sido la más exitosa históricamente --
+// limitación conocida (misma razón que "Publicaciones por día"), no un bug.
 async function cargarTopPublicaciones() {
   const snap = await db.collection('Publicaciones').orderBy('clics', 'desc').limit(5).get();
   const el = document.getElementById('top-publicaciones');
@@ -447,32 +515,32 @@ async function cargarGraficaRetencion() {
   });
 }
 
-// ── CHURN MENSUAL — cancelaciones (envios_retencion.enviado_en) últimos 6 meses ──
-// Aproximación: no existe un snapshot histórico de la base de comercios de pago
-// por mes, así que el % se calcula contra la base de pago actual + las
-// cancelaciones de este mes (la base "antes" de esas bajas).
+// ── CHURN MENSUAL — bajadas a Free (comercios.bajado_a_free) últimos 6 meses ──
+// Cuenta toda degradación a Free, sea cancelación/impago de un plan de pago
+// real (bajado_a_free_motivo: cancelacion_voluntaria/pago_fallido) o
+// expiración de un trial gratuito de Pionero que nunca llegó a pagar
+// (trial_expirado) -- ya no se basa en envios_retencion (que no cubre este
+// último caso, no se envía encuesta al expirar un trial). bajado_a_free es un
+// único Timestamp por comercio (no un histórico) que se sobrescribe si el
+// comercio baja a Free más de una vez, así que una bajada antigua se pierde
+// si hay una más reciente -- misma limitación de aproximación que ya tenía
+// esta gráfica. Como bajado_a_free no saca al comercio de la colección
+// `comercios` (solo cambia su plan), el total de comercios ya incluye a los
+// que han bajado este mes -- a diferencia de la versión anterior (base
+// "comercios de pago"), aquí no hace falta sumar las bajadas del mes al total.
 async function cargarGraficaChurn() {
   const hoy = new Date();
-  const inicioVentana = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
 
-  const [envSnap, comSnap] = await Promise.all([
-    db.collection('envios_retencion')
-      .where('enviado_en', '>=', firebase.firestore.Timestamp.fromDate(inicioVentana))
-      .get(),
-    db.collection('comercios').get(),
-  ]);
-  const comerciosPago = comSnap.docs.filter(d => {
-    const plan = d.data().plan_suscripcion;
-    return plan === 'pro' || plan === 'multi';
-  }).length;
+  const comSnap = await db.collection('comercios').get();
+  const totalComercios = comSnap.size;
 
   const meses = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
     meses.push({ anio: d.getFullYear(), mes: d.getMonth(), label: d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }), valor: 0 });
   }
-  envSnap.docs.forEach(doc => {
-    const ts = doc.data().enviado_en;
+  comSnap.docs.forEach(doc => {
+    const ts = doc.data().bajado_a_free;
     if (!ts) return;
     const fecha = ts.toDate();
     const bucket = meses.find(m => m.anio === fecha.getFullYear() && m.mes === fecha.getMonth());
@@ -483,7 +551,7 @@ async function cargarGraficaChurn() {
   if (chartChurn) chartChurn.destroy();
   chartChurn = new Chart(ctx, {
     type: 'bar',
-    data: { labels: meses.map(m => m.label), datasets: [{ label: 'Cancelaciones', data: meses.map(m => m.valor), backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 4 }] },
+    data: { labels: meses.map(m => m.label), datasets: [{ label: 'Bajadas a Free', data: meses.map(m => m.valor), backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 4 }] },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
@@ -494,12 +562,11 @@ async function cargarGraficaChurn() {
     },
   });
 
-  const cancelacionesMes = meses[meses.length - 1].valor;
-  const basePago = comerciosPago + cancelacionesMes;
-  const churnPct = basePago > 0 ? ((cancelacionesMes / basePago) * 100).toFixed(1) : '0.0';
+  const bajadasMes = meses[meses.length - 1].valor;
+  const churnPct = totalComercios > 0 ? ((bajadasMes / totalComercios) * 100).toFixed(1) : '0.0';
   const resumenEl = document.getElementById('churn-resumen');
   if (resumenEl) {
-    resumenEl.textContent = `${cancelacionesMes} cancelación${cancelacionesMes !== 1 ? 'es' : ''} este mes · churn aprox. ${churnPct}% sobre ${basePago} comercios de pago`;
+    resumenEl.textContent = `${bajadasMes} bajada${bajadasMes !== 1 ? 's' : ''} a Free este mes · churn aprox. ${churnPct}% sobre ${totalComercios} comercios`;
   }
 }
 

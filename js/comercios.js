@@ -330,15 +330,21 @@ async function cambiarPlanComercio(plan) {
       const base = ph > new Date() ? ph : new Date();
       hasta = new Date(base.getTime() + 30 * 86400000);
     }
-    await db.collection('comercios').doc(comercioModalId).update({
+    // subscription_cancelada:false solo al conceder un plan de pago -- si no,
+    // un comercio reactivado desde aquí se quedaba para siempre en el
+    // filtro "Bajas" del panel aunque volviera a estar activo.
+    const updateData = {
       plan_suscripcion: plan,
       estado_pago: plan !== 'free',
       plan_hasta: hasta ? firebase.firestore.Timestamp.fromDate(hasta) : null,
-    });
+    };
+    if (plan !== 'free') updateData.subscription_cancelada = false;
+    await db.collection('comercios').doc(comercioModalId).update(updateData);
     const idx = todosComercios.findIndex(c => c.id === comercioModalId);
     if (idx >= 0) {
       todosComercios[idx].plan_suscripcion = plan;
       todosComercios[idx].plan_hasta = hasta ? firebase.firestore.Timestamp.fromDate(hasta) : null;
+      if (plan !== 'free') todosComercios[idx].subscription_cancelada = false;
     }
     toast('Plan actualizado', 'success');
     cerrarModalComercio();
@@ -390,9 +396,13 @@ async function renovarPlanComercio() {
       await db.collection('comercios').doc(comercioModalId).update({
         plan_hasta: firebase.firestore.Timestamp.fromDate(hasta),
         estado_pago: true,
+        subscription_cancelada: false,
       });
       const idx = todosComercios.findIndex(x => x.id === comercioModalId);
-      if (idx >= 0) todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(hasta);
+      if (idx >= 0) {
+        todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(hasta);
+        todosComercios[idx].subscription_cancelada = false;
+      }
       toast('Piloto activo hasta el 31 de Diciembre de 2026', 'success');
     } else {
       // +30 días desde hoy o desde plan_hasta si está vigente
@@ -402,9 +412,13 @@ async function renovarPlanComercio() {
       await db.collection('comercios').doc(comercioModalId).update({
         plan_hasta: firebase.firestore.Timestamp.fromDate(nuevaHasta),
         estado_pago: true,
+        subscription_cancelada: false,
       });
       const idx = todosComercios.findIndex(x => x.id === comercioModalId);
-      if (idx >= 0) todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(nuevaHasta);
+      if (idx >= 0) {
+        todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(nuevaHasta);
+        todosComercios[idx].subscription_cancelada = false;
+      }
       toast('+30 días añadidos al plan', 'success');
     }
     cerrarModalComercio();
@@ -425,9 +439,13 @@ async function activarPilotoComercio() {
     await db.collection('comercios').doc(comercioModalId).update({
       plan_hasta: firebase.firestore.Timestamp.fromDate(hasta),
       estado_pago: true,
+      subscription_cancelada: false,
     });
     const idx = todosComercios.findIndex(c => c.id === comercioModalId);
-    if (idx >= 0) todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(hasta);
+    if (idx >= 0) {
+      todosComercios[idx].plan_hasta = firebase.firestore.Timestamp.fromDate(hasta);
+      todosComercios[idx].subscription_cancelada = false;
+    }
     toast('Piloto activo hasta el 31 de Diciembre de 2026', 'success');
     cerrarModalComercio();
     renderComercios();

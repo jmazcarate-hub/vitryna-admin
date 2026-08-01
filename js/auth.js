@@ -108,7 +108,12 @@ auth.onAuthStateChanged(user => {
 });
 
 // ── CARGA DINÁMICA DE MÓDULOS ──
-const modulosCargados = {};
+// "mantenimiento" no tiene js/mantenimiento.js -- su lógica (analizarHuerfanos,
+// limpiarHuerfanos...) va inline en index.html, cargada ya con la página. Sin
+// marcarlo aquí, cargarModulo intentaba buscar ese fichero inexistente cada
+// vez que se entraba en la sección (404 + error en consola, sin romper nada
+// porque las funciones ya estaban disponibles desde el principio).
+const modulosCargados = { mantenimiento: true };
 function cargarModulo(nombre) {
   if (modulosCargados[nombre]) {
     // Ya cargado — ejecutar directamente la función de carga
