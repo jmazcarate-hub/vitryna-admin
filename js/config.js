@@ -178,24 +178,38 @@ async function loadConfig() {
   cargarNifsPioneros();
 }
 
+// parseInt/parseFloat + "|| porDefecto" trataba un 0 legítimo (p.ej. una
+// promoción a precio 0, o IVA 0%) igual que un campo vacío o inválido,
+// porque en JS 0 es falsy -- el 0 se perdía en silencio y se guardaba el
+// valor por defecto en su lugar. Estas dos funciones solo caen al valor
+// por defecto cuando el campo está realmente vacío o no es un número.
+function intOrDefault(valor, porDefecto) {
+  const n = parseInt(valor);
+  return Number.isNaN(n) ? porDefecto : n;
+}
+function floatOrDefault(valor, porDefecto) {
+  const n = parseFloat(valor);
+  return Number.isNaN(n) ? porDefecto : n;
+}
+
 async function guardarConfig() {
   try {
     const params = {
-      limite_pubs_free:      parseInt(document.getElementById('cfg-limite-free').value) || 2,
-      dias_vida_publicacion: parseInt(document.getElementById('cfg-dias-vida').value) || 7,
-      radio_max_km:          parseFloat(document.getElementById('cfg-radio').value) || 3,
-      dias_limpieza_publicaciones: parseInt(document.getElementById('cfg-dias-limpieza').value) || 60,
-      dias_saturacion_free: parseInt(document.getElementById('cfg-dias-saturacion').value) || 10,
-      dias_saturacion_email_pro: parseInt(document.getElementById('cfg-dias-saturacion-email').value) || 21,
-      umbral_multi:          parseInt(document.getElementById('cfg-umbral-multi').value) || 5,
-      precio_plan_pro:       parseFloat(document.getElementById('cfg-precio-pro').value) || 19.90,
-      precio_plan_multi:     parseFloat(document.getElementById('cfg-precio-multi').value) || 15.98,
-      precio_boost4h_5:      parseFloat(document.getElementById('cfg-b4h-5').value) || 5.90,
-      precio_boost4h_10:     parseFloat(document.getElementById('cfg-b4h-10').value) || 9.90,
-      precio_boost4h_30:     parseFloat(document.getElementById('cfg-b4h-30').value) || 28.90,
-      precio_boost24h_5:     parseFloat(document.getElementById('cfg-b24h-5').value) || 9.90,
-      precio_boost24h_10:    parseFloat(document.getElementById('cfg-b24h-10').value) || 16.90,
-      precio_boost24h_30:    parseFloat(document.getElementById('cfg-b24h-30').value) || 47.90,
+      limite_pubs_free:      intOrDefault(document.getElementById('cfg-limite-free').value, 2),
+      dias_vida_publicacion: intOrDefault(document.getElementById('cfg-dias-vida').value, 7),
+      radio_max_km:          floatOrDefault(document.getElementById('cfg-radio').value, 3),
+      dias_limpieza_publicaciones: intOrDefault(document.getElementById('cfg-dias-limpieza').value, 60),
+      dias_saturacion_free: intOrDefault(document.getElementById('cfg-dias-saturacion').value, 10),
+      dias_saturacion_email_pro: intOrDefault(document.getElementById('cfg-dias-saturacion-email').value, 21),
+      umbral_multi:          intOrDefault(document.getElementById('cfg-umbral-multi').value, 5),
+      precio_plan_pro:       floatOrDefault(document.getElementById('cfg-precio-pro').value, 19.90),
+      precio_plan_multi:     floatOrDefault(document.getElementById('cfg-precio-multi').value, 15.98),
+      precio_boost4h_5:      floatOrDefault(document.getElementById('cfg-b4h-5').value, 5.90),
+      precio_boost4h_10:     floatOrDefault(document.getElementById('cfg-b4h-10').value, 9.90),
+      precio_boost4h_30:     floatOrDefault(document.getElementById('cfg-b4h-30').value, 28.90),
+      precio_boost24h_5:     floatOrDefault(document.getElementById('cfg-b24h-5').value, 9.90),
+      precio_boost24h_10:    floatOrDefault(document.getElementById('cfg-b24h-10').value, 16.90),
+      precio_boost24h_30:    floatOrDefault(document.getElementById('cfg-b24h-30').value, 47.90),
       stripe_price_pro:          document.getElementById('cfg-price-pro').value.trim(),
       stripe_price_multi:        document.getElementById('cfg-price-multi').value.trim(),
       stripe_price_boost4h_5:    document.getElementById('cfg-price-b4h-5').value.trim(),
@@ -212,7 +226,7 @@ async function guardarConfig() {
       cod_postal:         document.getElementById('cfg-cp').value.trim(),
       poblacion:          document.getElementById('cfg-poblacion').value.trim(),
       provincia:          document.getElementById('cfg-provincia').value.trim(),
-      iva:                parseFloat(document.getElementById('cfg-iva').value) || 21,
+      iva:                floatOrDefault(document.getElementById('cfg-iva').value, 21),
       registro_mercantil: document.getElementById('cfg-reg-mercantil').value.trim(),
     };
     await Promise.all([
