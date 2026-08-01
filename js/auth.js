@@ -113,7 +113,15 @@ document.getElementById('btn-login').addEventListener('click', async () => {
 document.getElementById('login-pass').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-login').click();
 });
-document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
+// Recarga completa tras signOut -- en la misma pestaña (SPA, sin reload), un
+// signOut() seguido de un signInWithEmailAndPassword() posterior puede dejar
+// el estado interno del SDK de Auth a medias y el siguiente login se cuelga
+// sin llegar ni siquiera a disparar el timeout (problema conocido del SDK,
+// no arreglable solo con el timeout). Forzar un reload garantiza que el
+// próximo login arranca con una instancia de Auth/Firestore limpia.
+document.getElementById('btn-logout').addEventListener('click', () => {
+  auth.signOut().finally(() => location.reload());
+});
 
 auth.onAuthStateChanged(user => {
   if (user) {
