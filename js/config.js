@@ -55,15 +55,6 @@ async function loadConfig() {
       </div>
 
       <div class="config-section">
-        <div class="config-section-title">Precios de planes</div>
-        <div class="config-section-desc">Importes que se muestran en la app y se usan para generar facturas (IVA incluido)</div>
-        <div class="config-block">
-          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Escaparate Pro (€/mes)</div></div><input type="number" class="config-input" id="cfg-precio-pro" value="${p.precio_plan_pro ?? 19.90}" step="0.01" min="0"></div>
-          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Multi-Barrio (€/comercio/mes)</div></div><input type="number" class="config-input" id="cfg-precio-multi" value="${p.precio_plan_multi ?? 15.98}" step="0.01" min="0"></div>
-        </div>
-      </div>
-
-      <div class="config-section">
         <div class="config-section-title">Cambiar precio de un plan</div>
         <div class="config-section-desc">
           <strong>Procedimiento:</strong> escribe el nuevo importe en euros y pulsa "Aplicar nuevo precio". Un solo botón hace las tres cosas
@@ -251,8 +242,6 @@ async function guardarConfig() {
       dias_saturacion_free: intOrDefault(document.getElementById('cfg-dias-saturacion').value, 10),
       dias_saturacion_email_pro: intOrDefault(document.getElementById('cfg-dias-saturacion-email').value, 21),
       umbral_multi:          intOrDefault(document.getElementById('cfg-umbral-multi').value, 5),
-      precio_plan_pro:       floatOrDefault(document.getElementById('cfg-precio-pro').value, 19.90),
-      precio_plan_multi:     floatOrDefault(document.getElementById('cfg-precio-multi').value, 15.98),
       stripe_price_pro:          document.getElementById('cfg-price-pro').value.trim(),
       stripe_price_multi:        document.getElementById('cfg-price-multi').value.trim(),
       stripe_price_boost4h_5:    document.getElementById('cfg-price-b4h-5').value.trim(),
