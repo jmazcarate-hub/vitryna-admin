@@ -55,11 +55,40 @@ async function loadConfig() {
       </div>
 
       <div class="config-section">
-        <div class="config-section-title">IDs de precios en Stripe</div>
+        <div class="config-section-title">Cambiar precio de un plan</div>
         <div class="config-section-desc">
-          Cada Price de Stripe es inmutable: para cambiar un importe hay que crear un Price nuevo en el
+          <strong>Procedimiento:</strong> escribe el nuevo importe en euros y pulsa "Aplicar nuevo precio". Un solo botón hace las tres cosas
+          en orden: 1) crea el Price nuevo en Stripe (nunca se edita uno existente, son inmutables), 2) lo guarda como precio activo
+          del plan, y 3) migra a él todas las suscripciones que ya estaban activas (efecto en la próxima renovación de cada una, sin
+          cobro adicional ahora mismo). No hace falta entrar en el Dashboard de Stripe ni copiar ningún ID a mano.
+        </div>
+        <div class="config-block">
+          <div class="config-field">
+            <div class="config-field-info"><div class="config-field-label">Escaparate Pro (€/mes)</div><div class="config-field-desc">Precio actual: ${Number(p.precio_plan_pro ?? 19.90).toFixed(2)} €</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="number" class="config-input" id="cfg-nuevo-precio-pro" step="0.01" min="0.01" placeholder="Nuevo importe">
+              <button class="btn-primary" onclick="cambiarPrecioPlan('pro')">Aplicar nuevo precio</button>
+            </div>
+          </div>
+          <div class="config-field">
+            <div class="config-field-info"><div class="config-field-label">Multi-Barrio (€/comercio/mes)</div><div class="config-field-desc">Precio actual: ${Number(p.precio_plan_multi ?? 15.98).toFixed(2)} €</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="number" class="config-input" id="cfg-nuevo-precio-multi" step="0.01" min="0.01" placeholder="Nuevo importe">
+              <button class="btn-primary" onclick="cambiarPrecioPlan('multi')">Aplicar nuevo precio</button>
+            </div>
+          </div>
+        </div>
+        <div id="cfg-cambiar-precio-msg" style="font-size:0.82rem;margin-top:10px;"></div>
+      </div>
+
+      <div class="config-section">
+        <div class="config-section-title">IDs de precios en Stripe (avanzado)</div>
+        <div class="config-section-desc">
+          Uso manual, para casos que el flujo de arriba no cubre (reutilizar un Price ya existente, boosts, etc.). Cada Price de
+          Stripe es inmutable: para cambiar un importe hay que crear un Price nuevo en el
           <a href="https://dashboard.stripe.com/prices" target="_blank" rel="noopener">Dashboard de Stripe</a>
-          y pegar aquí su ID. La app y las Cloud Functions lo recogen sin publicar nada.
+          y pegar aquí su ID, o generarlo desde arriba y verlo reflejado aquí. Guardar aquí un ID nuevo <strong>no actualiza las
+          suscripciones ya activas</strong> — usa el botón correspondiente más abajo para migrarlas, o el flujo de arriba.
         </div>
         <div class="config-block">
           <div class="config-field"><div class="config-field-info"><div class="config-field-label">Escaparate Pro</div></div><input type="text" class="config-input wide" id="cfg-price-pro" value="${p.stripe_price_pro || ''}" placeholder="price_..."></div>
@@ -73,11 +102,8 @@ async function loadConfig() {
         </div>
         <div style="background:#FFF7E0;border:1.5px solid var(--yellow,#FFAA00);border-radius:10px;padding:14px 16px;margin-top:16px;">
           <div style="font-size:0.85rem;color:var(--text-1);line-height:1.5;margin-bottom:10px;">
-            <strong>Importante:</strong> guardar aquí un ID de Price nuevo <strong>no actualiza las suscripciones que ya estaban activas</strong> —
-            solo afecta a comercios que se registren o contraten a partir de ahora. Los que ya estaban pagando siguen con
-            el precio antiguo, renovación tras renovación, hasta que se migran a mano. Guarda primero el ID nuevo arriba
-            (p.ej. <code>price_1Tbm...</code>) y usa estos botones para pasar a todos los comercios activos de ese plan
-            al precio que acabas de guardar.
+            Si has pegado aquí un ID de Price a mano (en vez de usar el flujo de arriba) y quieres pasar a él las suscripciones
+            que ya estaban activas: guarda primero con "Guardar configuración" y después pulsa el botón del plan correspondiente.
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <button class="btn-secondary" onclick="migrarPreciosActivos('pro')">Migrar todos los Pro activos al precio guardado</button>
@@ -251,11 +277,41 @@ async function guardarConfig() {
   } catch (e) { toast('Error guardando configuración', 'error'); }
 }
 
+// Flujo principal de "Cambiar precio de un plan": un solo botón que crea el
+// Price nuevo en Stripe, lo guarda en config/parametros y migra las
+// suscripciones activas, todo en una sola llamada a cambiarPrecioPlan.
+async function cambiarPrecioPlan(plan) {
+  const nombrePlan = plan === 'multi' ? 'Multi-Barrio' : 'Escaparate Pro';
+  const inputId = plan === 'multi' ? 'cfg-nuevo-precio-multi' : 'cfg-nuevo-precio-pro';
+  const input = document.getElementById(inputId);
+  const importe = parseFloat(input.value);
+  if (!importe || importe <= 0) { toast('Escribe un importe válido mayor que 0', 'error'); return; }
+
+  if (!confirm(`¿Cambiar el precio de ${nombrePlan} a ${importe.toFixed(2)} €?\n\nSe creará un Price nuevo en Stripe, se guardará como precio activo y se migrarán a él todas las suscripciones que ya estaban activas (efecto en la próxima renovación de cada una, sin cobro adicional ahora).`)) return;
+
+  const msg = document.getElementById('cfg-cambiar-precio-msg');
+  msg.innerHTML = '<span style="color:var(--text-2);">Creando el precio nuevo y migrando…</span>';
+  try {
+    const cambiar = firebase.app().functions('europe-west1').httpsCallable('cambiarPrecioPlan');
+    const res = await cambiar({ plan, nuevoImporte: importe });
+    const d = res.data;
+    msg.innerHTML = `<span style="color:var(--green);">✓ Precio de ${nombrePlan} cambiado a ${importe.toFixed(2)} € (${d.nuevoPriceId}). ${d.migrados} suscripciones migradas · ${d.sinSuscripcion} sin suscripción de Stripe (Pioneros)${d.errores > 0 ? ' · ' + d.errores + ' con error (revisa los logs)' : ''}.</span>`;
+    toast(`Precio de ${nombrePlan} actualizado`, 'success');
+    input.value = '';
+    await loadConfig(); // refresca "Precio actual" e IDs en bruto con el nuevo estado
+  } catch (e) {
+    console.error('Error cambiando precio:', e);
+    msg.innerHTML = `<span style="color:var(--red);">Error: ${e.message || e}</span>`;
+    toast('Error cambiando el precio', 'error');
+  }
+}
+
 // Un Price de Stripe es inmutable -- guardar un ID nuevo en "IDs de precios en
-// Stripe" solo aplica a comercios que se registren/contraten a partir de ese
-// momento (obtenerPriceMap() lo lee en vivo). Las suscripciones ya activas
-// siguen con el precio antiguo hasta que se migran a mano; este botón llama
-// a la Cloud Function que lo hace en bloque para todos los comercios del plan.
+// Stripe (avanzado)" solo aplica a comercios que se registren/contraten a
+// partir de ese momento (obtenerPriceMap() lo lee en vivo). Las suscripciones
+// ya activas siguen con el precio antiguo hasta que se migran a mano; este
+// botón llama a la Cloud Function que lo hace en bloque para todos los
+// comercios del plan -- flujo manual, complementario a cambiarPrecioPlan.
 async function migrarPreciosActivos(plan) {
   const nombrePlan = plan === 'multi' ? 'Multi-Barrio' : 'Escaparate Pro';
   if (!confirm(`¿Migrar TODOS los comercios ${nombrePlan} con suscripción activa al price_id guardado arriba?\n\nAsegúrate de haber guardado primero el ID nuevo con "Guardar configuración". El cambio de precio en cada suscripción solo tiene efecto en su próxima renovación (sin cobro adicional ahora).`)) return;
