@@ -71,6 +71,20 @@ async function loadConfig() {
           <div class="config-field"><div class="config-field-info"><div class="config-field-label">Boost 24h — pack 10</div></div><input type="text" class="config-input wide" id="cfg-price-b24h-10" value="${p.stripe_price_boost24h_10 || ''}" placeholder="price_..."></div>
           <div class="config-field"><div class="config-field-info"><div class="config-field-label">Boost 24h — pack 30</div></div><input type="text" class="config-input wide" id="cfg-price-b24h-30" value="${p.stripe_price_boost24h_30 || ''}" placeholder="price_..."></div>
         </div>
+        <div style="background:#FFF7E0;border:1.5px solid var(--yellow,#FFAA00);border-radius:10px;padding:14px 16px;margin-top:16px;">
+          <div style="font-size:0.85rem;color:var(--text-1);line-height:1.5;margin-bottom:10px;">
+            <strong>Importante:</strong> guardar aquí un ID de Price nuevo <strong>no actualiza las suscripciones que ya estaban activas</strong> —
+            solo afecta a comercios que se registren o contraten a partir de ahora. Los que ya estaban pagando siguen con
+            el precio antiguo, renovación tras renovación, hasta que se migran a mano. Guarda primero el ID nuevo arriba
+            (p.ej. <code>price_1Tbm...</code>) y usa estos botones para pasar a todos los comercios activos de ese plan
+            al precio que acabas de guardar.
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn-secondary" onclick="migrarPreciosActivos('pro')">Migrar todos los Pro activos al precio guardado</button>
+            <button class="btn-secondary" onclick="migrarPreciosActivos('multi')">Migrar todos los Multi activos al precio guardado</button>
+          </div>
+          <div id="cfg-migrar-msg" style="font-size:0.82rem;margin-top:10px;"></div>
+        </div>
       </div>
 
       <div class="config-section">
@@ -235,6 +249,29 @@ async function guardarConfig() {
     ]);
     toast('Configuración guardada', 'success');
   } catch (e) { toast('Error guardando configuración', 'error'); }
+}
+
+// Un Price de Stripe es inmutable -- guardar un ID nuevo en "IDs de precios en
+// Stripe" solo aplica a comercios que se registren/contraten a partir de ese
+// momento (obtenerPriceMap() lo lee en vivo). Las suscripciones ya activas
+// siguen con el precio antiguo hasta que se migran a mano; este botón llama
+// a la Cloud Function que lo hace en bloque para todos los comercios del plan.
+async function migrarPreciosActivos(plan) {
+  const nombrePlan = plan === 'multi' ? 'Multi-Barrio' : 'Escaparate Pro';
+  if (!confirm(`¿Migrar TODOS los comercios ${nombrePlan} con suscripción activa al price_id guardado arriba?\n\nAsegúrate de haber guardado primero el ID nuevo con "Guardar configuración". El cambio de precio en cada suscripción solo tiene efecto en su próxima renovación (sin cobro adicional ahora).`)) return;
+  const msg = document.getElementById('cfg-migrar-msg');
+  msg.innerHTML = '<span style="color:var(--text-2);">Migrando…</span>';
+  try {
+    const migrar = firebase.app().functions('europe-west1').httpsCallable('migrarPreciosActivos');
+    const res = await migrar({ plan });
+    const d = res.data;
+    msg.innerHTML = `<span style="color:var(--green);">✓ ${d.migrados} migrados · ${d.yaActualizados} ya estaban al día · ${d.sinSuscripcion} sin suscripción de Stripe (Pioneros)${d.errores > 0 ? ' · ' + d.errores + ' con error (revisa los logs)' : ''}.</span>`;
+    toast(`${d.migrados} suscripciones ${nombrePlan} migradas`, 'success');
+  } catch (e) {
+    console.error('Error migrando precios:', e);
+    msg.innerHTML = `<span style="color:var(--red);">Error: ${e.message || e}</span>`;
+    toast('Error migrando precios', 'error');
+  }
 }
 
 // ── POBLACIONES Y BARRIOS ────────────────────────────────────────────────────
