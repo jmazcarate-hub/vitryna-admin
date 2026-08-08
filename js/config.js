@@ -1,3 +1,12 @@
+const BOOST_SLOTS_INFO = [
+  { slot: 'boost4h_5',   label: 'Boost 4h — pack 5',   campoImporte: 'precio_boost4h_5',   defecto: 5.90 },
+  { slot: 'boost4h_10',  label: 'Boost 4h — pack 10',  campoImporte: 'precio_boost4h_10',  defecto: 9.90 },
+  { slot: 'boost4h_30',  label: 'Boost 4h — pack 30',  campoImporte: 'precio_boost4h_30',  defecto: 28.90 },
+  { slot: 'boost24h_5',  label: 'Boost 24h — pack 5',  campoImporte: 'precio_boost24h_5',  defecto: 9.90 },
+  { slot: 'boost24h_10', label: 'Boost 24h — pack 10', campoImporte: 'precio_boost24h_10', defecto: 16.90 },
+  { slot: 'boost24h_30', label: 'Boost 24h — pack 30', campoImporte: 'precio_boost24h_30', defecto: 47.90 },
+];
+
 async function loadConfig() {
   const el = document.getElementById('config-content');
   el.innerHTML = '<div class="spinner"></div>';
@@ -114,23 +123,23 @@ async function loadConfig() {
       </div>
 
       <div class="config-section">
-        <div class="config-section-title">Precios boosts 4h</div>
-        <div class="config-section-desc">Packs Super-Escaparate (4 horas)</div>
-        <div class="config-block">
-          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Pack 5 boosts</div></div><input type="number" class="config-input" id="cfg-b4h-5" value="${p.precio_boost4h_5 ?? 5.90}" step="0.01" min="0"></div>
-          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Pack 10 boosts</div></div><input type="number" class="config-input" id="cfg-b4h-10" value="${p.precio_boost4h_10 ?? 9.90}" step="0.01" min="0"></div>
-          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Pack 30 boosts</div></div><input type="number" class="config-input" id="cfg-b4h-30" value="${p.precio_boost4h_30 ?? 28.90}" step="0.01" min="0"></div>
+        <div class="config-section-title">Cambiar precio de un boost</div>
+        <div class="config-section-desc">
+          Mismo procedimiento que los planes: escribe el importe nuevo y pulsa "Aplicar". Crea el Price en Stripe y lo guarda
+          en un solo paso — sin migración, un boost es un pago único (no una suscripción), así que ya se usa en la siguiente
+          compra sin nada más que hacer.
         </div>
-      </div>
-
-      <div class="config-section">
-        <div class="config-section-title">Precios boosts 24h</div>
-        <div class="config-section-desc">Packs Super-Escaparate Plus (24 horas)</div>
         <div class="config-block">
-          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Pack 5 boosts</div></div><input type="number" class="config-input" id="cfg-b24h-5" value="${p.precio_boost24h_5 ?? 9.90}" step="0.01" min="0"></div>
-          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Pack 10 boosts</div></div><input type="number" class="config-input" id="cfg-b24h-10" value="${p.precio_boost24h_10 ?? 16.90}" step="0.01" min="0"></div>
-          <div class="config-field"><div class="config-field-info"><div class="config-field-label">Pack 30 boosts</div></div><input type="number" class="config-input" id="cfg-b24h-30" value="${p.precio_boost24h_30 ?? 47.90}" step="0.01" min="0"></div>
+          ${BOOST_SLOTS_INFO.map(b => `
+          <div class="config-field">
+            <div class="config-field-info"><div class="config-field-label">${b.label}</div><div class="config-field-desc">Precio actual: ${Number(p[b.campoImporte] ?? b.defecto).toFixed(2)} €</div></div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <input type="number" class="config-input" id="cfg-nuevo-precio-${b.slot}" step="0.01" min="0.01" placeholder="Nuevo importe">
+              <button class="btn-primary" onclick="cambiarPrecioBoost('${b.slot}')">Aplicar</button>
+            </div>
+          </div>`).join('')}
         </div>
+        <div id="cfg-cambiar-boost-msg" style="font-size:0.82rem;margin-top:10px;"></div>
       </div>
 
       <div class="config-section">
@@ -244,12 +253,6 @@ async function guardarConfig() {
       umbral_multi:          intOrDefault(document.getElementById('cfg-umbral-multi').value, 5),
       precio_plan_pro:       floatOrDefault(document.getElementById('cfg-precio-pro').value, 19.90),
       precio_plan_multi:     floatOrDefault(document.getElementById('cfg-precio-multi').value, 15.98),
-      precio_boost4h_5:      floatOrDefault(document.getElementById('cfg-b4h-5').value, 5.90),
-      precio_boost4h_10:     floatOrDefault(document.getElementById('cfg-b4h-10').value, 9.90),
-      precio_boost4h_30:     floatOrDefault(document.getElementById('cfg-b4h-30').value, 28.90),
-      precio_boost24h_5:     floatOrDefault(document.getElementById('cfg-b24h-5').value, 9.90),
-      precio_boost24h_10:    floatOrDefault(document.getElementById('cfg-b24h-10').value, 16.90),
-      precio_boost24h_30:    floatOrDefault(document.getElementById('cfg-b24h-30').value, 47.90),
       stripe_price_pro:          document.getElementById('cfg-price-pro').value.trim(),
       stripe_price_multi:        document.getElementById('cfg-price-multi').value.trim(),
       stripe_price_boost4h_5:    document.getElementById('cfg-price-b4h-5').value.trim(),
@@ -301,6 +304,34 @@ async function cambiarPrecioPlan(plan) {
     await loadConfig(); // refresca "Precio actual" e IDs en bruto con el nuevo estado
   } catch (e) {
     console.error('Error cambiando precio:', e);
+    msg.innerHTML = `<span style="color:var(--red);">Error: ${e.message || e}</span>`;
+    toast('Error cambiando el precio', 'error');
+  }
+}
+
+// Mismo flujo que cambiarPrecioPlan pero para boosts -- sin migración, un
+// boost es un pago único (PaymentIntent), no una suscripción, así que no hay
+// nada "activo" que corregir: la siguiente compra ya usa el precio nuevo.
+async function cambiarPrecioBoost(slot) {
+  const info = BOOST_SLOTS_INFO.find(b => b.slot === slot);
+  const nombre = info ? info.label : slot;
+  const input = document.getElementById(`cfg-nuevo-precio-${slot}`);
+  const importe = parseFloat(input.value);
+  if (!importe || importe <= 0) { toast('Escribe un importe válido mayor que 0', 'error'); return; }
+
+  if (!confirm(`¿Cambiar el precio de "${nombre}" a ${importe.toFixed(2)} €?\n\nSe creará un Price nuevo en Stripe y se guardará como precio activo. Se usará desde la siguiente compra.`)) return;
+
+  const msg = document.getElementById('cfg-cambiar-boost-msg');
+  msg.innerHTML = '<span style="color:var(--text-2);">Creando el precio nuevo…</span>';
+  try {
+    const cambiar = firebase.app().functions('europe-west1').httpsCallable('cambiarPrecioBoost');
+    const res = await cambiar({ slot, nuevoImporte: importe });
+    msg.innerHTML = `<span style="color:var(--green);">✓ Precio de "${nombre}" cambiado a ${importe.toFixed(2)} € (${res.data.nuevoPriceId}).</span>`;
+    toast(`Precio de "${nombre}" actualizado`, 'success');
+    input.value = '';
+    await loadConfig();
+  } catch (e) {
+    console.error('Error cambiando precio de boost:', e);
     msg.innerHTML = `<span style="color:var(--red);">Error: ${e.message || e}</span>`;
     toast('Error cambiando el precio', 'error');
   }
