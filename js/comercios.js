@@ -117,6 +117,7 @@ function renderComercios() {
     if (filtroCom === 'con-boosts4h'  && !((c.boosts_4h  || 0) > 0)) return false;
     if (filtroCom === 'con-boosts24h' && !((c.boosts_24h || 0) > 0)) return false;
     if (filtroCom === 'saturados'     && !c.saturado) return false;
+    if (filtroCom === 'sin-verificar' && c.email_verificado !== false) return false;
     if (q && !`${c.nombre_comercio} ${c.cif_nif} ${c.email}`.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -143,7 +144,7 @@ function renderComercios() {
         return `<tr>
           <td><div style="font-weight:500">${escapeHtml(c.nombre_comercio) || '—'}</div><div style="font-size:0.75rem;color:var(--text-2)">${escapeHtml(c.email) || '—'}</div><div style="font-size:0.75rem;color:var(--text-3)">${escapeHtml(c.telefono) || '—'}</div></td>
           <td style="color:var(--text-2);font-size:0.83rem">${escapeHtml(c.categoria) || '—'}</td>
-          <td><span class="badge ${plan}">${plan.toUpperCase()}</span>${c.saturado ? `<div style="margin-top:4px;"><span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;">Saturado ${c.diasSaturado} de ${c.diasDesdeAlta}d</span></div>` : ''}</td>
+          <td><span class="badge ${plan}">${plan.toUpperCase()}</span>${c.saturado ? `<div style="margin-top:4px;"><span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;">Saturado ${c.diasSaturado} de ${c.diasDesdeAlta}d</span></div>` : ''}${c.email_verificado === false ? `<div style="margin-top:4px;"><span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;">Sin verificar · ${timeAgo(c.verificacion_email_enviado_en || c.creado_en)}</span></div>` : ''}</td>
           <td><span class="${vi.clase}">${vi.texto}</span></td>
           <td>${stripeTag}</td>
           <td style="text-align:center;">${badgeBoost(c.boosts_4h, 'orange')}</td>
