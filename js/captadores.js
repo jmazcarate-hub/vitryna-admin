@@ -211,9 +211,8 @@ async function cargarConfigCaptadores() {
     const doc = await db.collection('config').doc('captadores').get();
     const d = doc.data() || {};
     el.innerHTML = `
-      <div class="field-row">
-        <div class="field-group"><label>Hora inicio de turno</label><input type="time" id="cc-hora-inicio" value="${d.hora_inicio_turno || '09:00'}"></div>
-        <div class="field-group"><label>Hora fin de turno</label><input type="time" id="cc-hora-fin" value="${d.hora_fin_turno || '21:00'}"></div>
+      <div style="font-size:0.78rem;color:var(--text-3);margin-bottom:14px;">
+        El aviso de "fuera de horario" se calcula contra el turno real de cada captador (hora a la que abrió/cerró sesión), no contra un horario fijo aquí.
       </div>
       <div class="field-row">
         <div class="field-group"><label>Distancia sospechosa (metros)</label><input type="number" id="cc-distancia" value="${d.distancia_sospechosa_m ?? 2000}"></div>
@@ -234,8 +233,6 @@ async function cargarConfigCaptadores() {
 async function guardarConfigCaptadores() {
   try {
     await db.collection('config').doc('captadores').set({
-      hora_inicio_turno: document.getElementById('cc-hora-inicio').value,
-      hora_fin_turno: document.getElementById('cc-hora-fin').value,
       distancia_sospechosa_m: Number(document.getElementById('cc-distancia').value) || 0,
       tarifa_hora: Number(document.getElementById('cc-tarifa-hora').value) || 0,
       comision_variable_1_amigo: Number(document.getElementById('cc-variable').value) || 0,
