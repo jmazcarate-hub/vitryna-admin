@@ -85,6 +85,10 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M9 21V8l7-5v18"/><path d="M9 12h7"/></svg>
       Colaboradores
     </a>
+    <a class="nav-item" data-section="captadores">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0114 0v1"/><path d="M17 3.13a4 4 0 010 7.75M21 21v-1a6 6 0 00-4-5.66"/></svg>
+      Captadores
+    </a>
     <div class="nav-section-title">Finanzas</div>
     <a class="nav-item" data-section="finanzas">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
@@ -281,6 +285,69 @@
           <button class="btn-primary" id="btn-nuevo-colaborador">+ Nuevo colaborador</button>
         </div>
         <div id="contenedor-colaboradores"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- CAPTADORES -->
+    <div class="section" id="section-captadores">
+      <div class="table-card" style="margin-bottom:20px;">
+        <div class="table-header">
+          <div class="card-title">Captadores</div>
+          <button class="btn-primary" id="btn-nuevo-captador">+ Nuevo captador</button>
+        </div>
+        <div id="tabla-captadores"><div class="spinner"></div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header"><div class="card-title">Parámetros de la campaña</div></div>
+        <div id="captadores-config" style="padding:16px 20px;"><div class="spinner"></div></div>
+      </div>
+
+      <div class="table-card" style="margin-bottom:20px;">
+        <div class="table-header">
+          <div class="card-title">Emails captados</div>
+          <div class="search-box" style="min-width:200px;">
+            <input type="text" id="search-captaciones" placeholder="Buscar por email...">
+          </div>
+        </div>
+        <div class="filter-bar" id="filtros-captaciones">
+          <div class="filter-chip active" data-filter="todos">Todos</div>
+          <div class="filter-chip" data-filter="confirmados">Confirmados</div>
+          <div class="filter-chip" data-filter="pendientes">Sin cuenta todavía</div>
+          <div class="filter-chip" data-filter="sospechoso" style="border-color:var(--red);color:var(--red);">Sospechosos</div>
+        </div>
+        <div id="tabla-captaciones"><div class="spinner"></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Sorteo</div>
+          <button class="btn-primary" id="btn-sortear">Sortear ganador</button>
+        </div>
+        <div id="sorteo-resultado" style="padding:16px 20px;color:var(--text-2);font-size:0.85rem;"></div>
+      </div>
+    </div>
+
+    <!-- Modal alta/edición de captador -->
+    <div class="modal-overlay" id="modal-captador">
+      <div class="modal">
+        <div class="modal-header">
+          <div><div class="modal-title" id="modal-captador-titulo">Nuevo captador</div><div class="modal-sub">Campaña de captación de vecinos</div></div>
+          <button class="modal-close" onclick="cerrarModalCaptador()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="field-group"><label>Nombre *</label><input type="text" id="mc-nombre" placeholder="Nombre del captador"></div>
+          <div class="field-group"><label>Puesto / zona</label><input type="text" id="mc-puesto" placeholder="Ej: Calle Mayor - Zona Norte"></div>
+          <div class="field-group">
+            <label id="mc-pin-label">PIN (4 dígitos) *</label>
+            <input type="text" id="mc-pin" inputmode="numeric" maxlength="4" placeholder="0000">
+            <div style="font-size:0.73rem;color:var(--text-3);margin-top:4px;" id="mc-pin-nota"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-sm" onclick="cerrarModalCaptador()">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-captador">Guardar</button>
+        </div>
       </div>
     </div>
 
