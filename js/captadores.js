@@ -151,6 +151,18 @@ function nombreCaptador(id) {
   return todosCaptadores.find((c) => c.id === id)?.nombre || id;
 }
 
+const MOTIVOS_SOSPECHA_TEXTO = {
+  distancia_alta: 'Distancia captador↔alta alta',
+  fuera_de_horario: 'Alta fuera del horario del turno',
+  cuenta_previa_a_captacion: 'La cuenta ya existía antes de la captación',
+};
+function motivosSospechaHtml(match) {
+  const motivos = match?.motivos_sospecha || [];
+  if (motivos.length === 0) return '';
+  const texto = motivos.map((m) => MOTIVOS_SOSPECHA_TEXTO[m] || m).join(' · ');
+  return `<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;" title="${escapeHtml(texto)}">${escapeHtml(texto)}</span>`;
+}
+
 function renderCaptaciones() {
   const q = (document.getElementById('search-captaciones').value || '').toLowerCase();
   const lista = todasCaptaciones.filter((c) => {
@@ -184,7 +196,7 @@ function renderCaptaciones() {
           <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(c.fecha_registro)}</td>
           <td>${estado}</td>
           <td style="text-align:center;">${m ? m.amigos_count : '—'}</td>
-          <td>${m?.sospechoso ? '<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;">Sospechoso</span>' : ''}</td>
+          <td>${motivosSospechaHtml(m)}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
