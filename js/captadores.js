@@ -206,7 +206,9 @@ function renderCaptaciones() {
 async function cargarConfigCaptadores() {
   const el = document.getElementById('captadores-config');
   try {
-    const doc = await db.collection('parametros').doc('captadores_config').get();
+    // config/captadores, NUNCA la colección suelta 'parametros' (huérfana,
+    // ver CLAUDE.md) -- la configuración real vive bajo config/{doc}.
+    const doc = await db.collection('config').doc('captadores').get();
     const d = doc.data() || {};
     el.innerHTML = `
       <div class="field-row">
@@ -231,7 +233,7 @@ async function cargarConfigCaptadores() {
 
 async function guardarConfigCaptadores() {
   try {
-    await db.collection('parametros').doc('captadores_config').set({
+    await db.collection('config').doc('captadores').set({
       hora_inicio_turno: document.getElementById('cc-hora-inicio').value,
       hora_fin_turno: document.getElementById('cc-hora-fin').value,
       distancia_sospechosa_m: Number(document.getElementById('cc-distancia').value) || 0,
