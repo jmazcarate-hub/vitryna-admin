@@ -5,7 +5,14 @@ let filtroCaptadorId = '';
 let captadorEditId = null;
 
 async function loadCaptadores() {
-  await Promise.all([cargarRosterCaptadores(), cargarCaptaciones(), cargarConfigCaptadores()]);
+  // El roster tiene que estar cargado ANTES de que cargarCaptaciones()
+  // pinte la tabla (nombreCaptador() lee todosCaptadores) -- si se lanzan
+  // los tres en paralelo con Promise.all, cargarCaptaciones() puede
+  // terminar y renderizar antes de que el roster esté listo, y la columna
+  // Captador muestra el id en bruto en vez del nombre. Bug real detectado
+  // el 14/08/2026 probando con un captador recién creado.
+  await cargarRosterCaptadores();
+  await Promise.all([cargarCaptaciones(), cargarConfigCaptadores()]);
   renderFiltroCaptadorSelect();
 
   if (!document.getElementById('search-captaciones')._bound) {
@@ -26,6 +33,7 @@ async function loadCaptadores() {
     document.getElementById('btn-nuevo-captador').addEventListener('click', () => abrirModalCaptador(null));
     document.getElementById('btn-guardar-captador').addEventListener('click', guardarCaptador);
     document.getElementById('btn-sortear').addEventListener('click', ejecutarSorteo);
+    document.getElementById('btn-recalcular-captaciones').addEventListener('click', recalcularCaptacionesUI);
   }
 }
 
@@ -148,6 +156,29 @@ async function resetPinCaptadorUI(id) {
     toast('PIN reiniciado', 'success');
   } catch (e) {
     toast('Error al resetear el PIN: ' + (e.message || e), 'error');
+  }
+}
+
+// El cruce con los vecinos reales (procesarCaptaciones) solo corre cada 15
+// min por defecto -- sin esto, tras dar de alta datos de prueba habría que
+// esperar hasta un cuarto de hora para ver el resultado en el panel. Como
+// admin, recalcularAhora() procesa TODAS las captaciones (no solo las de
+// un captador), a diferencia de cómo la llama la propia web de captadores.
+async function recalcularCaptacionesUI() {
+  const btn = document.getElementById('btn-recalcular-captaciones');
+  btn.disabled = true;
+  btn.textContent = 'Recalculando...';
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('recalcularAhora');
+    await fn();
+    await cargarCaptaciones();
+    await cargarRosterCaptadores();
+    toast('Recalculado', 'success');
+  } catch (e) {
+    toast('Error al recalcular: ' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Recalcular ahora';
   }
 }
 
