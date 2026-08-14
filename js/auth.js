@@ -143,12 +143,21 @@ auth.onAuthStateChanged(user => {
 // vez que se entraba en la sección (404 + error en consola, sin romper nada
 // porque las funciones ya estaban disponibles desde el principio).
 const modulosCargados = { mantenimiento: true };
+const modulosCargando = {};
 function cargarModulo(nombre) {
   if (modulosCargados[nombre]) {
     // Ya cargado — ejecutar directamente la función de carga
     ejecutarSeccion(nombre);
     return;
   }
+  // modulosCargados[nombre] solo se pone a true dentro de s.onload, que es
+  // asíncrono -- un clic repetido en el nav antes de que la primera carga
+  // termine (p.ej. doble clic) inyectaba el <script> una segunda vez (cada
+  // una con su propio ?t= distinto, así que el navegador no las deduplica),
+  // ejecutando el módulo entero dos veces por completo, incluidos los
+  // listeners que registra. modulosCargando corta la segunda inyección.
+  if (modulosCargando[nombre]) return;
+  modulosCargando[nombre] = true;
   const s = document.createElement('script');
   s.src = `js/${nombre}.js?t=${Date.now()}`;
   s.onload = () => {

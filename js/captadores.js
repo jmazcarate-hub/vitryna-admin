@@ -72,7 +72,7 @@ function renderRosterCaptadores() {
     <table>
       <thead><tr><th>Nombre</th><th>Puesto</th><th style="text-align:center;">Estado</th><th style="text-align:center;">Hoy</th><th>Acciones</th></tr></thead>
       <tbody>${todosCaptadores.map((c) => `<tr>
-        <td style="font-weight:500">${escapeHtml(c.nombre)}</td>
+        <td style="font-weight:500">${c.nombre ? escapeHtml(c.nombre) : '<span style="color:var(--text-2);font-style:italic;">(sin nombre — id ' + escapeHtml(c.id) + ')</span>'}</td>
         <td style="color:var(--text-2);font-size:0.85rem">${escapeHtml(c.puesto) || '—'}</td>
         <td style="text-align:center;">
           <span class="badge ${c.activo ? 'activo' : 'free'}" style="cursor:pointer;" onclick="toggleActivoCaptador('${c.id}', ${!c.activo})">
@@ -83,6 +83,7 @@ function renderRosterCaptadores() {
         <td>
           <button class="btn-sm" onclick="abrirModalCaptador('${c.id}')">Editar</button>
           <button class="btn-sm" onclick="resetPinCaptadorUI('${c.id}')">Resetear PIN</button>
+          <button class="btn-sm" onclick="eliminarCaptadorUI('${c.id}', '${escapeHtml(c.nombre || c.id)}')">Eliminar</button>
         </td>
       </tr>`).join('')}</tbody>
     </table>`;
@@ -115,12 +116,18 @@ function cerrarModalCaptador() {
 }
 
 async function guardarCaptador() {
+  const btn = document.getElementById('btn-guardar-captador');
+  // Guarda contra doble-click: sin esto, un doble-click antes de que la
+  // primera llamada resuelva dispara crearCaptador() dos veces (dos
+  // captadores duplicados en el roster, cada uno con su propio id).
+  if (btn.disabled) return;
   const nombre = document.getElementById('mc-nombre').value.trim();
   const puesto = document.getElementById('mc-puesto').value.trim();
   const pin = document.getElementById('mc-pin').value.trim();
 
   if (!nombre) { toast('El nombre es obligatorio', 'error'); return; }
 
+  btn.disabled = true;
   try {
     if (captadorEditId) {
       // Nombre/puesto se editan directamente (el admin ya tiene acceso vía
@@ -143,6 +150,20 @@ async function guardarCaptador() {
     cargarRosterCaptadores();
   } catch (e) {
     toast('Error al guardar: ' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function eliminarCaptadorUI(id, nombre) {
+  if (!confirm(`¿Borrar al captador "${nombre}"? Esto no afecta a los emails que ya haya captado, solo elimina su acceso y su sesión de turno.`)) return;
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('eliminarCaptador');
+    await fn({ captadorId: id });
+    toast('Captador eliminado', 'success');
+    cargarRosterCaptadores();
+  } catch (e) {
+    toast('Error al eliminar: ' + (e.message || e), 'error');
   }
 }
 
