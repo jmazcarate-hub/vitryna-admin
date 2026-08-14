@@ -173,15 +173,24 @@ const MOTIVOS_SOSPECHA_TEXTO = {
   cuenta_previa_a_captacion: 'La cuenta ya existía antes de la captación',
   ubicacion_compartida: 'Ubicación compartida con otro(s) vecino(s) fuera del área',
 };
-function motivosSospechaHtml(match) {
-  const motivos = match?.motivos_sospecha || [];
-  if (motivos.length === 0) return '';
-  const texto = motivos.map((m) => {
+// Toma el registro de captación COMPLETO (no solo vitryna_match) -- el
+// ritmo de captación es una señal sobre el propio registro (independiente
+// de si llegó a convertirse en vecino real), vive en un campo propio del
+// doc, no dentro de vitryna_match.
+function motivosSospechaHtml(c) {
+  const match = c.vitryna_match;
+  const motivos = [...(match?.motivos_sospecha || [])];
+  const textos = motivos.map((m) => {
     if (m === 'ubicacion_compartida' && match.otros_en_misma_ubicacion) {
       return `${MOTIVOS_SOSPECHA_TEXTO[m]} (${match.otros_en_misma_ubicacion})`;
     }
     return MOTIVOS_SOSPECHA_TEXTO[m] || m;
-  }).join(' · ');
+  });
+  if (c.ritmo_sospechoso) {
+    textos.push(`Ritmo de captación imposible (${c.intervalo_anterior_segundos}s desde el anterior)`);
+  }
+  if (textos.length === 0) return '';
+  const texto = textos.join(' · ');
   return `<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;" title="${escapeHtml(texto)}">${escapeHtml(texto)}</span>`;
 }
 
@@ -190,8 +199,8 @@ function renderCaptaciones() {
   const lista = todasCaptaciones.filter((c) => {
     const match = c.vitryna_match;
     if (filtroCaptaciones === 'confirmados' && !(match && match.amigos_count >= 1)) return false;
-    if (filtroCaptaciones === 'pendientes' && match) return false;
-    if (filtroCaptaciones === 'sospechoso' && !match?.sospechoso) return false;
+    if (filtroCaptaciones === 'pendientes' && (match || c.es_comercio_existente)) return false;
+    if (filtroCaptaciones === 'sospechoso' && !match?.sospechoso && !c.ritmo_sospechoso) return false;
     if (filtroCaptadorId && c.captador_id !== filtroCaptadorId) return false;
     if (q && !c.email.toLowerCase().includes(q)) return false;
     return true;
@@ -208,18 +217,23 @@ function renderCaptaciones() {
       <thead><tr><th>Email</th><th>Captador</th><th>Registrado</th><th>Vecino real</th><th style="text-align:center;">Amigos</th><th>Aviso</th></tr></thead>
       <tbody>${lista.map((c) => {
         const m = c.vitryna_match;
-        const estado = !m
-          ? '<span class="badge free">Sin cuenta todavía</span>'
-          : m.email_verificado
-            ? '<span class="badge activo">Confirmado</span>'
-            : '<span class="badge free">Sin verificar email</span>';
+        // es_comercio_existente: el email SÍ tiene cuenta, solo que es de
+        // comercio -- "Sin cuenta todavía" sería falso para este caso.
+        const estado = c.es_comercio_existente
+          ? '<span class="badge pro">Cuenta de Comercio</span>'
+          : !m
+            ? '<span class="badge free">Sin cuenta todavía</span>'
+            : m.email_verificado
+              ? '<span class="badge activo">Confirmado</span>'
+              : '<span class="badge free">Sin verificar email</span>';
+        const amigos = c.es_comercio_existente ? c.comercio_amigos_count : (m ? m.amigos_count : null);
         return `<tr>
           <td>${escapeHtml(c.email)}</td>
           <td style="font-size:0.85rem;">${escapeHtml(nombreCaptador(c.captador_id))}</td>
           <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(c.fecha_registro)}</td>
-          <td>${estado}</td>
-          <td style="text-align:center;">${m ? m.amigos_count : '—'}</td>
-          <td>${motivosSospechaHtml(m)}</td>
+          <td>${estado}${c.es_comercio_existente && c.comercio_nombre ? `<div style="font-size:0.72rem;color:var(--text-2);margin-top:2px;">${escapeHtml(c.comercio_nombre)}</div>` : ''}</td>
+          <td style="text-align:center;">${amigos ?? '—'}</td>
+          <td>${motivosSospechaHtml(c)}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
@@ -242,10 +256,11 @@ async function cargarConfigCaptadores() {
         <div class="field-group"><label>Radio "misma ubicación" (metros)</label><input type="number" id="cc-radio-ubicacion" value="${d.radio_misma_ubicacion_m ?? 2}"></div>
       </div>
       <div class="field-row">
+        <div class="field-group"><label>Intervalo mínimo entre capturas (segundos)</label><input type="number" id="cc-intervalo" value="${d.intervalo_minimo_segundos ?? 20}"></div>
         <div class="field-group"><label>Tarifa por hora (€)</label><input type="number" step="0.01" id="cc-tarifa-hora" value="${d.tarifa_hora ?? 0}"></div>
-        <div class="field-group"><label>Prima por vecino con 1+ amigo (€)</label><input type="number" step="0.01" id="cc-variable" value="${d.comision_variable_1_amigo ?? 0}"></div>
       </div>
       <div class="field-row">
+        <div class="field-group"><label>Prima por vecino con 1+ amigo (€)</label><input type="number" step="0.01" id="cc-variable" value="${d.comision_variable_1_amigo ?? 0}"></div>
         <div class="field-group"><label>Bono por 2+ amigos (€)</label><input type="number" step="0.01" id="cc-bono" value="${d.bono_2_amigos ?? 0}"></div>
       </div>
       <button class="btn-primary" id="btn-guardar-config-captadores" style="margin-top:8px;">Guardar parámetros</button>
@@ -261,6 +276,7 @@ async function guardarConfigCaptadores() {
     await db.collection('config').doc('captadores').set({
       distancia_sospechosa_m: Number(document.getElementById('cc-distancia').value) || 0,
       radio_misma_ubicacion_m: Number(document.getElementById('cc-radio-ubicacion').value) || 0,
+      intervalo_minimo_segundos: Number(document.getElementById('cc-intervalo').value) || 0,
       tarifa_hora: Number(document.getElementById('cc-tarifa-hora').value) || 0,
       comision_variable_1_amigo: Number(document.getElementById('cc-variable').value) || 0,
       bono_2_amigos: Number(document.getElementById('cc-bono').value) || 0,
