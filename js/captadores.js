@@ -216,7 +216,9 @@ async function cargarCaptaciones() {
 }
 
 function nombreCaptador(id) {
-  return todosCaptadores.find((c) => c.id === id)?.nombre || id;
+  const c = todosCaptadores.find((x) => x.id === id);
+  if (!c) return '(captador eliminado)';
+  return c.nombre || '(sin nombre)';
 }
 
 const MOTIVOS_SOSPECHA_TEXTO = {
