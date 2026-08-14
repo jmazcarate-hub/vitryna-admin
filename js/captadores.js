@@ -189,6 +189,11 @@ function motivosSospechaHtml(c) {
   if (c.ritmo_sospechoso) {
     textos.push(`Ritmo de captación imposible (${c.intervalo_anterior_segundos}s desde el anterior)`);
   }
+  // El comercio no genera vitryna_match (no es un vecino captado), pero
+  // "¿ya existía antes de la captación?" es igual de relevante ahí.
+  if (c.es_comercio_existente && c.comercio_cuenta_previa) {
+    textos.push('La cuenta de comercio ya existía antes de la captación');
+  }
   if (textos.length === 0) return '';
   const texto = textos.join(' · ');
   return `<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;" title="${escapeHtml(texto)}">${escapeHtml(texto)}</span>`;
@@ -247,21 +252,43 @@ async function cargarConfigCaptadores() {
     // ver CLAUDE.md) -- la configuración real vive bajo config/{doc}.
     const doc = await db.collection('config').doc('captadores').get();
     const d = doc.data() || {};
+    const ayuda = (texto) => `<div style="font-size:0.73rem;color:var(--text-3);margin-top:4px;">${texto}</div>`;
     el.innerHTML = `
-      <div style="font-size:0.78rem;color:var(--text-3);margin-bottom:14px;">
-        El aviso de "fuera de horario" se calcula contra el turno real de cada captador (hora a la que abrió/cerró sesión), no contra un horario fijo aquí.
+      <div class="field-row">
+        <div class="field-group">
+          <label>Distancia sospechosa / área de captación (metros)</label>
+          <input type="number" id="cc-distancia" value="${d.distancia_sospechosa_m ?? 2000}">
+          ${ayuda('Si el vecino se dio de alta más lejos de aquí del captador que lo captó, se marca "Distancia captador↔alta alta". También define qué cuenta como "fuera del área" para el resto de señales.')}
+        </div>
+        <div class="field-group">
+          <label>Radio "misma ubicación" (metros)</label>
+          <input type="number" id="cc-radio-ubicacion" value="${d.radio_misma_ubicacion_m ?? 2}">
+          ${ayuda('Entre vecinos ya marcados "fuera del área": si dos o más se dieron de alta a menos de este radio entre sí, se marca "Ubicación compartida" (posibles altas fake creadas en bloque desde un mismo punto).')}
+        </div>
       </div>
       <div class="field-row">
-        <div class="field-group"><label>Distancia sospechosa / área de captación (metros)</label><input type="number" id="cc-distancia" value="${d.distancia_sospechosa_m ?? 2000}"></div>
-        <div class="field-group"><label>Radio "misma ubicación" (metros)</label><input type="number" id="cc-radio-ubicacion" value="${d.radio_misma_ubicacion_m ?? 2}"></div>
+        <div class="field-group">
+          <label>Intervalo mínimo entre capturas (segundos)</label>
+          <input type="number" id="cc-intervalo" value="${d.intervalo_minimo_segundos ?? 20}">
+          ${ayuda('Si el mismo captador registra dos emails con menos tiempo que este entre uno y otro, se marca "Ritmo de captación imposible". No depende de si el email llega a convertirse en vecino real.')}
+        </div>
+        <div class="field-group">
+          <label>Tarifa por hora (€)</label>
+          <input type="number" step="0.01" id="cc-tarifa-hora" value="${d.tarifa_hora ?? 0}">
+          ${ayuda('Referencia informativa del sueldo por hora del captador -- no se usa todavía en ningún cálculo automático de este panel.')}
+        </div>
       </div>
       <div class="field-row">
-        <div class="field-group"><label>Intervalo mínimo entre capturas (segundos)</label><input type="number" id="cc-intervalo" value="${d.intervalo_minimo_segundos ?? 20}"></div>
-        <div class="field-group"><label>Tarifa por hora (€)</label><input type="number" step="0.01" id="cc-tarifa-hora" value="${d.tarifa_hora ?? 0}"></div>
-      </div>
-      <div class="field-row">
-        <div class="field-group"><label>Prima por vecino con 1+ amigo (€)</label><input type="number" step="0.01" id="cc-variable" value="${d.comision_variable_1_amigo ?? 0}"></div>
-        <div class="field-group"><label>Bono por 2+ amigos (€)</label><input type="number" step="0.01" id="cc-bono" value="${d.bono_2_amigos ?? 0}"></div>
+        <div class="field-group">
+          <label>Prima por vecino con 1+ amigo (€)</label>
+          <input type="number" step="0.01" id="cc-variable" value="${d.comision_variable_1_amigo ?? 0}">
+          ${ayuda('Se suma a la "Prima estimada de hoy" (Mi cuenta del captador) por cada vecino de HOY que ya aparece confirmado (verificado y con 1 o más amigos).')}
+        </div>
+        <div class="field-group">
+          <label>Bono por 2+ amigos (€)</label>
+          <input type="number" step="0.01" id="cc-bono" value="${d.bono_2_amigos ?? 0}">
+          ${ayuda('Pendiente de conectar al cálculo automático -- de momento es solo un valor de referencia guardado aquí.')}
+        </div>
       </div>
       <button class="btn-primary" id="btn-guardar-config-captadores" style="margin-top:8px;">Guardar parámetros</button>
     `;
