@@ -311,6 +311,12 @@
             <select id="filtro-captador-captaciones" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.9rem;background:var(--surface);color:var(--text);min-width:200px;">
               <option value="">Todos los captadores</option>
             </select>
+            <div style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--text-2);">
+              <span>Desde</span>
+              <input type="date" id="filtro-fecha-desde" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;background:var(--surface);color:var(--text);">
+              <span>hasta</span>
+              <input type="date" id="filtro-fecha-hasta" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;background:var(--surface);color:var(--text);">
+            </div>
             <div class="search-box" style="min-width:200px;">
               <input type="text" id="search-captaciones" placeholder="Buscar por email...">
             </div>

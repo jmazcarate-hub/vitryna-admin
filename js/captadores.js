@@ -2,6 +2,8 @@ let todosCaptadores = [];
 let todasCaptaciones = [];
 let filtroCaptaciones = 'todos';
 let filtroCaptadorId = '';
+let filtroFechaDesde = '';
+let filtroFechaHasta = '';
 let captadorEditId = null;
 
 async function loadCaptadores() {
@@ -20,6 +22,14 @@ async function loadCaptadores() {
     document.getElementById('search-captaciones').addEventListener('input', renderCaptaciones);
     document.getElementById('filtro-captador-captaciones').addEventListener('change', (e) => {
       filtroCaptadorId = e.target.value;
+      renderCaptaciones();
+    });
+    document.getElementById('filtro-fecha-desde').addEventListener('change', (e) => {
+      filtroFechaDesde = e.target.value;
+      renderCaptaciones();
+    });
+    document.getElementById('filtro-fecha-hasta').addEventListener('change', (e) => {
+      filtroFechaHasta = e.target.value;
       renderCaptaciones();
     });
     document.querySelectorAll('#filtros-captaciones .filter-chip').forEach((chip) => {
@@ -203,6 +213,27 @@ async function recalcularCaptacionesUI() {
   }
 }
 
+// prima ya viene calculada por el backend (0 si es sospechosa o un email de
+// comercio existente, el importe de config/captadores si está confirmada y
+// limpia, en blanco si todavía no se sabe) -- este solo permite corregirla a
+// mano. Escribir prima_editada_manualmente:true evita que el siguiente
+// cruce (cada 15 min, o al insertar una captación nueva) la vuelva a pisar.
+async function actualizarPrimaUI(id, valorStr) {
+  const valor = valorStr.trim() === '' ? null : Number(valorStr);
+  if (valorStr.trim() !== '' && (Number.isNaN(valor) || valor < 0)) {
+    toast('Importe no válido', 'error');
+    cargarCaptaciones();
+    return;
+  }
+  try {
+    await db.collection('captaciones').doc(id).update({ prima: valor, prima_editada_manualmente: true });
+    toast('Prima actualizada', 'success');
+  } catch (e) {
+    toast('Error al guardar la prima: ' + (e.message || e), 'error');
+    cargarCaptaciones();
+  }
+}
+
 // firestore.rules bloquea delete de captaciones para cualquier cliente
 // (allow update, delete: if false), pero el admin tiene acceso total vía la
 // regla comodín (match /{document=**}) -- ambas reglas se evalúan con OR,
@@ -277,6 +308,12 @@ function renderCaptaciones() {
     if (filtroCaptaciones === 'pendientes' && (match || c.es_comercio_existente)) return false;
     if (filtroCaptaciones === 'sospechoso' && !match?.sospechoso && !c.ritmo_sospechoso) return false;
     if (filtroCaptadorId && c.captador_id !== filtroCaptadorId) return false;
+    if (filtroFechaDesde || filtroFechaHasta) {
+      const fecha = c.fecha_registro?.toDate?.();
+      if (!fecha) return false;
+      if (filtroFechaDesde && fecha < new Date(filtroFechaDesde + 'T00:00:00')) return false;
+      if (filtroFechaHasta && fecha > new Date(filtroFechaHasta + 'T23:59:59')) return false;
+    }
     if (q && !c.email.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -289,7 +326,7 @@ function renderCaptaciones() {
       ${lista.length} de ${todasCaptaciones.length} captaciones (últimas 500)
     </div>
     <table>
-      <thead><tr><th>Email</th><th>Captador</th><th>Registrado</th><th>Vecino real</th><th style="text-align:center;">Amigos</th><th>Aviso</th><th></th></tr></thead>
+      <thead><tr><th>Email</th><th>Captador</th><th>Registrado</th><th>Vecino real</th><th style="text-align:center;">Amigos</th><th>Aviso</th><th>Prima</th><th></th></tr></thead>
       <tbody>${lista.map((c) => {
         const m = c.vitryna_match;
         // es_comercio_existente: el email SÍ tiene cuenta, solo que es de
@@ -309,6 +346,13 @@ function renderCaptaciones() {
           <td>${estado}${c.es_comercio_existente && c.comercio_nombre ? `<div style="font-size:0.72rem;color:var(--text-2);margin-top:2px;">${escapeHtml(c.comercio_nombre)}</div>` : ''}</td>
           <td style="text-align:center;">${amigos ?? '—'}</td>
           <td>${motivosSospechaHtml(c)}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="number" step="0.01" min="0" style="width:70px;" value="${c.prima ?? ''}" placeholder="—"
+                onchange="actualizarPrimaUI('${c.id}', this.value)">
+              ${c.prima_editada_manualmente ? '<span title="Importe corregido a mano, ya no se recalcula solo" style="font-size:0.7rem;color:var(--text-2);">✎</span>' : ''}
+            </div>
+          </td>
           <td><button class="btn-sm" onclick="eliminarCaptacionUI('${c.id}', '${escapeHtml(c.email)}')">Eliminar</button></td>
         </tr>`;
       }).join('')}</tbody>
@@ -353,12 +397,12 @@ async function cargarConfigCaptadores() {
         <div class="field-group">
           <label>Prima por vecino con 1+ amigo (€)</label>
           <input type="number" step="0.01" id="cc-variable" value="${d.comision_variable_1_amigo ?? 0}">
-          ${ayuda('Se suma a la "Prima estimada de hoy" (Mi cuenta del captador) por cada vecino de HOY que ya aparece confirmado (verificado y con 1 o más amigos).')}
+          ${ayuda('Importe sugerido en la columna "Prima" de cada captación confirmada (vecino real, verificado, sin ningún motivo de sospecha) -- editable a mano fila por fila. Se suma también a "Prima estimada de hoy" en Mi cuenta del captador.')}
         </div>
         <div class="field-group">
           <label>Bono por 2+ amigos (€)</label>
           <input type="number" step="0.01" id="cc-bono" value="${d.bono_2_amigos ?? 0}">
-          ${ayuda('Pendiente de conectar al cálculo automático -- de momento es solo un valor de referencia guardado aquí.')}
+          ${ayuda('Se añade a la prima por vecino (arriba) cuando ese vecino confirmado ya sigue a 2 o más comercios, no solo 1.')}
         </div>
       </div>
       <button class="btn-primary" id="btn-guardar-config-captadores" style="margin-top:8px;">Guardar parámetros</button>
