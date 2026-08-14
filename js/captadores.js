@@ -155,11 +155,17 @@ const MOTIVOS_SOSPECHA_TEXTO = {
   distancia_alta: 'Distancia captador↔alta alta',
   fuera_de_horario: 'Alta fuera del horario del turno',
   cuenta_previa_a_captacion: 'La cuenta ya existía antes de la captación',
+  ubicacion_compartida: 'Ubicación compartida con otro(s) vecino(s) fuera del área',
 };
 function motivosSospechaHtml(match) {
   const motivos = match?.motivos_sospecha || [];
   if (motivos.length === 0) return '';
-  const texto = motivos.map((m) => MOTIVOS_SOSPECHA_TEXTO[m] || m).join(' · ');
+  const texto = motivos.map((m) => {
+    if (m === 'ubicacion_compartida' && match.otros_en_misma_ubicacion) {
+      return `${MOTIVOS_SOSPECHA_TEXTO[m]} (${match.otros_en_misma_ubicacion})`;
+    }
+    return MOTIVOS_SOSPECHA_TEXTO[m] || m;
+  }).join(' · ');
   return `<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;" title="${escapeHtml(texto)}">${escapeHtml(texto)}</span>`;
 }
 
@@ -215,11 +221,14 @@ async function cargarConfigCaptadores() {
         El aviso de "fuera de horario" se calcula contra el turno real de cada captador (hora a la que abrió/cerró sesión), no contra un horario fijo aquí.
       </div>
       <div class="field-row">
-        <div class="field-group"><label>Distancia sospechosa (metros)</label><input type="number" id="cc-distancia" value="${d.distancia_sospechosa_m ?? 2000}"></div>
-        <div class="field-group"><label>Tarifa por hora (€)</label><input type="number" step="0.01" id="cc-tarifa-hora" value="${d.tarifa_hora ?? 0}"></div>
+        <div class="field-group"><label>Distancia sospechosa / área de captación (metros)</label><input type="number" id="cc-distancia" value="${d.distancia_sospechosa_m ?? 2000}"></div>
+        <div class="field-group"><label>Radio "misma ubicación" (metros)</label><input type="number" id="cc-radio-ubicacion" value="${d.radio_misma_ubicacion_m ?? 2}"></div>
       </div>
       <div class="field-row">
+        <div class="field-group"><label>Tarifa por hora (€)</label><input type="number" step="0.01" id="cc-tarifa-hora" value="${d.tarifa_hora ?? 0}"></div>
         <div class="field-group"><label>Prima por vecino con 1+ amigo (€)</label><input type="number" step="0.01" id="cc-variable" value="${d.comision_variable_1_amigo ?? 0}"></div>
+      </div>
+      <div class="field-row">
         <div class="field-group"><label>Bono por 2+ amigos (€)</label><input type="number" step="0.01" id="cc-bono" value="${d.bono_2_amigos ?? 0}"></div>
       </div>
       <button class="btn-primary" id="btn-guardar-config-captadores" style="margin-top:8px;">Guardar parámetros</button>
@@ -234,6 +243,7 @@ async function guardarConfigCaptadores() {
   try {
     await db.collection('config').doc('captadores').set({
       distancia_sospechosa_m: Number(document.getElementById('cc-distancia').value) || 0,
+      radio_misma_ubicacion_m: Number(document.getElementById('cc-radio-ubicacion').value) || 0,
       tarifa_hora: Number(document.getElementById('cc-tarifa-hora').value) || 0,
       comision_variable_1_amigo: Number(document.getElementById('cc-variable').value) || 0,
       bono_2_amigos: Number(document.getElementById('cc-bono').value) || 0,
