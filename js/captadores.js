@@ -272,6 +272,8 @@ async function guardarConfigCaptadores() {
 }
 
 // ── SORTEO ─────────────────────────────────────────────────────────────────
+let ultimoSorteoId = null;
+
 async function ejecutarSorteo() {
   if (!confirm('¿Ejecutar el sorteo ahora? Se elegirá un ganador entre todos los emails registrados.')) return;
   const el = document.getElementById('sorteo-resultado');
@@ -280,8 +282,39 @@ async function ejecutarSorteo() {
     const fn = firebase.app().functions('europe-west1').httpsCallable('sortearGanador');
     const res = await fn({ numGanadores: 1 });
     const ganador = res.data.ganadores[0];
-    el.innerHTML = `Ganador: <strong>${escapeHtml(ganador.email)}</strong> (captado por ${escapeHtml(nombreCaptador(ganador.captador_id))}) — de ${res.data.total_participantes} participantes.`;
+    ultimoSorteoId = res.data.id;
+    el.innerHTML = `
+      Ganador: <strong>${escapeHtml(ganador.email)}</strong> (captado por ${escapeHtml(nombreCaptador(ganador.captador_id))}) — de ${res.data.total_participantes} participantes.
+      <div style="margin-top:10px;">
+        <button class="btn-primary" id="btn-email-ganador">Enviar email al ganador</button>
+      </div>
+    `;
+    document.getElementById('btn-email-ganador').addEventListener('click', enviarEmailGanadorUI);
   } catch (e) {
     el.textContent = 'Error al sortear: ' + (e.message || e);
+  }
+}
+
+// El lugar de recogida del premio todavía no está decidido -- se pide aquí
+// como texto libre en vez de una plantilla fija, para no mandar nunca un
+// email real con un hueco a medio rellenar (p.ej. "recógelo en .........").
+async function enviarEmailGanadorUI() {
+  if (!ultimoSorteoId) return;
+  const lugarRecogida = prompt('¿Dónde puede recoger el premio el ganador? (se incluirá tal cual en el email)');
+  if (lugarRecogida === null) return;
+  if (!lugarRecogida.trim()) { toast('El lugar de recogida no puede estar vacío', 'error'); return; }
+
+  const btn = document.getElementById('btn-email-ganador');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('enviarEmailGanador');
+    const res = await fn({ sorteoId: ultimoSorteoId, lugarRecogida });
+    toast(`Email enviado (${res.data.enviados}/${res.data.total})`, 'success');
+    btn.textContent = 'Email enviado ✓';
+  } catch (e) {
+    toast('Error al enviar: ' + (e.message || e), 'error');
+    btn.disabled = false;
+    btn.textContent = 'Enviar email al ganador';
   }
 }
