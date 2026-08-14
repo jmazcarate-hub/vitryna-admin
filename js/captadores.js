@@ -17,9 +17,8 @@ async function loadCaptadores() {
   await Promise.all([cargarCaptaciones(), cargarConfigCaptadores()]);
   renderFiltroCaptadorSelect();
 
-  if (!document.getElementById('search-captaciones')._bound) {
-    document.getElementById('search-captaciones')._bound = true;
-    document.getElementById('search-captaciones').addEventListener('input', renderCaptaciones);
+  if (!document.getElementById('filtro-captador-captaciones')._bound) {
+    document.getElementById('filtro-captador-captaciones')._bound = true;
     document.getElementById('filtro-captador-captaciones').addEventListener('change', (e) => {
       filtroCaptadorId = e.target.value;
       renderCaptaciones();
@@ -301,7 +300,6 @@ function motivosSospechaHtml(c) {
 }
 
 function renderCaptaciones() {
-  const q = (document.getElementById('search-captaciones').value || '').toLowerCase();
   const lista = todasCaptaciones.filter((c) => {
     const match = c.vitryna_match;
     if (filtroCaptaciones === 'confirmados' && !(match && match.amigos_count >= 1)) return false;
@@ -314,7 +312,6 @@ function renderCaptaciones() {
       if (filtroFechaDesde && fecha < new Date(filtroFechaDesde + 'T00:00:00')) return false;
       if (filtroFechaHasta && fecha > new Date(filtroFechaHasta + 'T23:59:59')) return false;
     }
-    if (q && !c.email.toLowerCase().includes(q)) return false;
     return true;
   });
 
