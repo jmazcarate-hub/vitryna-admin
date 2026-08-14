@@ -203,6 +203,22 @@ async function recalcularCaptacionesUI() {
   }
 }
 
+// firestore.rules bloquea delete de captaciones para cualquier cliente
+// (allow update, delete: if false), pero el admin tiene acceso total vía la
+// regla comodín (match /{document=**}) -- ambas reglas se evalúan con OR,
+// así que no hace falta una Cloud Function para esto, igual que
+// toggleActivoCaptador() ya escribe directo con el SDK del cliente.
+async function eliminarCaptacionUI(id, email) {
+  if (!confirm(`¿Borrar la captación de "${email}"? No se puede deshacer.`)) return;
+  try {
+    await db.collection('captaciones').doc(id).delete();
+    toast('Captación eliminada', 'success');
+    cargarCaptaciones();
+  } catch (e) {
+    toast('Error al eliminar: ' + (e.message || e), 'error');
+  }
+}
+
 // ── CAPTACIONES (emails recogidos) ────────────────────────────────────────
 async function cargarCaptaciones() {
   const el = document.getElementById('tabla-captaciones');
@@ -273,7 +289,7 @@ function renderCaptaciones() {
       ${lista.length} de ${todasCaptaciones.length} captaciones (últimas 500)
     </div>
     <table>
-      <thead><tr><th>Email</th><th>Captador</th><th>Registrado</th><th>Vecino real</th><th style="text-align:center;">Amigos</th><th>Aviso</th></tr></thead>
+      <thead><tr><th>Email</th><th>Captador</th><th>Registrado</th><th>Vecino real</th><th style="text-align:center;">Amigos</th><th>Aviso</th><th></th></tr></thead>
       <tbody>${lista.map((c) => {
         const m = c.vitryna_match;
         // es_comercio_existente: el email SÍ tiene cuenta, solo que es de
@@ -293,6 +309,7 @@ function renderCaptaciones() {
           <td>${estado}${c.es_comercio_existente && c.comercio_nombre ? `<div style="font-size:0.72rem;color:var(--text-2);margin-top:2px;">${escapeHtml(c.comercio_nombre)}</div>` : ''}</td>
           <td style="text-align:center;">${amigos ?? '—'}</td>
           <td>${motivosSospechaHtml(c)}</td>
+          <td><button class="btn-sm" onclick="eliminarCaptacionUI('${c.id}', '${escapeHtml(c.email)}')">Eliminar</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
