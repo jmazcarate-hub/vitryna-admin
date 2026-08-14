@@ -197,6 +197,7 @@
             <input type="text" id="search-comercios" placeholder="Buscar por nombre, CIF, email...">
           </div>
         </div>
+        <div style="padding:0 20px 8px;font-size:0.75rem;color:var(--text-3);">Busca por nombre del negocio, CIF/NIF o email. "Vencen pronto" = 7 días o menos para que caduque el plan. Los chips Bajas y Retención muestran un listado aparte con su propia consulta — mientras están activos, la búsqueda y el resto de filtros no se aplican.</div>
         <div class="filter-bar" id="filtros-comercios">
           <div class="filter-chip active" data-filter="todos">Todos</div>
           <div class="filter-chip" data-filter="free">Free</div>
@@ -219,6 +220,7 @@
     <div class="section" id="section-vecinos">
       <div class="table-card">
         <div class="table-header"><div class="card-title">Vecinos registrados</div></div>
+        <div style="padding:0 20px 8px;font-size:0.75rem;color:var(--text-3);">Sin buscador por nombre/email -- la tabla pagina de 50 en 50 directamente contra Firestore. "Sin verificar" filtra por su propia consulta (email_verificado == false), no sobre la página ya cargada.</div>
         <div class="filter-bar" id="filtros-vecinos">
           <div class="filter-chip active" data-filter="todos">Todos</div>
           <div class="filter-chip" data-filter="sin-verificar" style="border-color:var(--red);color:var(--red);">Sin verificar</div>
@@ -237,6 +239,7 @@
             <input type="text" id="search-pubs" placeholder="Buscar por título o comercio...">
           </div>
         </div>
+        <div style="padding:0 20px 8px;font-size:0.75rem;color:var(--text-3);">Busca por título de la publicación o nombre del comercio. "Activas"/"Caducadas" se calcula igual que en la app (fecha de creación + días de vida configurados), no hay campo "activa" en Firestore. El período (abajo) filtra por fecha de creación, independiente de si la publicación sigue activa.</div>
         <div class="filter-bar" id="filtros-pubs">
           <div class="filter-chip active" data-filter="todas">Todas</div>
           <div class="filter-chip" data-filter="activas">Activas</div>
@@ -322,6 +325,7 @@
             </div>
           </div>
         </div>
+        <div style="padding:0 20px 8px;font-size:0.75rem;color:var(--text-3);">Busca por email captado. "Confirmados" = ya se dieron de alta como vecino real y siguen a 1 o más comercios. "Sin cuenta todavía" excluye tanto los confirmados como los que resultan ser un email de comercio ya existente. "Sospechosos" agrupa distancia, horario del turno, ritmo de captación y ubicación compartida — nunca bloquea, solo avisa; el admin decide caso a caso. El filtro de fechas es sobre cuándo se registró la captación, no sobre cuándo se resolvió el cruce (que puede llegar días después).</div>
         <div class="filter-bar" id="filtros-captaciones">
           <div class="filter-chip active" data-filter="todos">Todos</div>
           <div class="filter-chip" data-filter="confirmados">Confirmados</div>
