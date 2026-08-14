@@ -285,11 +285,13 @@ async function ejecutarSorteo() {
     ultimoSorteoId = res.data.id;
     el.innerHTML = `
       Ganador: <strong>${escapeHtml(ganador.email)}</strong> (captado por ${escapeHtml(nombreCaptador(ganador.captador_id))}) — de ${res.data.total_participantes} participantes.
-      <div style="margin-top:10px;">
+      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn-primary" id="btn-email-ganador">Enviar email al ganador</button>
+        <button class="btn-sm" id="btn-email-no-ganadores">Avisar al resto de participantes</button>
       </div>
     `;
     document.getElementById('btn-email-ganador').addEventListener('click', enviarEmailGanadorUI);
+    document.getElementById('btn-email-no-ganadores').addEventListener('click', enviarEmailNoGanadoresUI);
   } catch (e) {
     el.textContent = 'Error al sortear: ' + (e.message || e);
   }
@@ -316,5 +318,24 @@ async function enviarEmailGanadorUI() {
     toast('Error al enviar: ' + (e.message || e), 'error');
     btn.disabled = false;
     btn.textContent = 'Enviar email al ganador';
+  }
+}
+
+async function enviarEmailNoGanadoresUI() {
+  if (!ultimoSorteoId) return;
+  if (!confirm('¿Avisar por email a todos los demás participantes de que el sorteo ya tiene ganador? Puede ser una lista larga.')) return;
+
+  const btn = document.getElementById('btn-email-no-ganadores');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  try {
+    const fn = firebase.app().functions('europe-west1').httpsCallable('enviarEmailNoGanadores');
+    const res = await fn({ sorteoId: ultimoSorteoId });
+    toast(`Aviso enviado (${res.data.enviados}/${res.data.total})`, 'success');
+    btn.textContent = 'Aviso enviado ✓';
+  } catch (e) {
+    toast('Error al enviar: ' + (e.message || e), 'error');
+    btn.disabled = false;
+    btn.textContent = 'Avisar al resto de participantes';
   }
 }
