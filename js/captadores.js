@@ -1,14 +1,20 @@
 let todosCaptadores = [];
 let todasCaptaciones = [];
 let filtroCaptaciones = 'todos';
+let filtroCaptadorId = '';
 let captadorEditId = null;
 
 async function loadCaptadores() {
   await Promise.all([cargarRosterCaptadores(), cargarCaptaciones(), cargarConfigCaptadores()]);
+  renderFiltroCaptadorSelect();
 
   if (!document.getElementById('search-captaciones')._bound) {
     document.getElementById('search-captaciones')._bound = true;
     document.getElementById('search-captaciones').addEventListener('input', renderCaptaciones);
+    document.getElementById('filtro-captador-captaciones').addEventListener('change', (e) => {
+      filtroCaptadorId = e.target.value;
+      renderCaptaciones();
+    });
     document.querySelectorAll('#filtros-captaciones .filter-chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         document.querySelectorAll('#filtros-captaciones .filter-chip').forEach((c) => c.classList.remove('active'));
@@ -21,6 +27,16 @@ async function loadCaptadores() {
     document.getElementById('btn-guardar-captador').addEventListener('click', guardarCaptador);
     document.getElementById('btn-sortear').addEventListener('click', ejecutarSorteo);
   }
+}
+
+// Repoblar en cada loadCaptadores (no solo la primera vez) -- captadores
+// nuevos dados de alta deben aparecer en el selector sin recargar la página.
+function renderFiltroCaptadorSelect() {
+  const select = document.getElementById('filtro-captador-captaciones');
+  const valorPrevio = select.value;
+  select.innerHTML = '<option value="">Todos los captadores</option>' +
+    todosCaptadores.map((c) => `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`).join('');
+  if (todosCaptadores.some((c) => c.id === valorPrevio)) select.value = valorPrevio;
 }
 
 // ── ROSTER DE CAPTADORES ──────────────────────────────────────────────────
@@ -176,6 +192,7 @@ function renderCaptaciones() {
     if (filtroCaptaciones === 'confirmados' && !(match && match.amigos_count >= 1)) return false;
     if (filtroCaptaciones === 'pendientes' && match) return false;
     if (filtroCaptaciones === 'sospechoso' && !match?.sospechoso) return false;
+    if (filtroCaptadorId && c.captador_id !== filtroCaptadorId) return false;
     if (q && !c.email.toLowerCase().includes(q)) return false;
     return true;
   });

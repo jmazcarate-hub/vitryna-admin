@@ -306,8 +306,13 @@
       <div class="table-card" style="margin-bottom:20px;">
         <div class="table-header">
           <div class="card-title">Emails captados</div>
-          <div class="search-box" style="min-width:200px;">
-            <input type="text" id="search-captaciones" placeholder="Buscar por email...">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <select id="filtro-captador-captaciones" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.9rem;background:var(--surface);color:var(--text);min-width:200px;">
+              <option value="">Todos los captadores</option>
+            </select>
+            <div class="search-box" style="min-width:200px;">
+              <input type="text" id="search-captaciones" placeholder="Buscar por email...">
+            </div>
           </div>
         </div>
         <div class="filter-bar" id="filtros-captaciones">
