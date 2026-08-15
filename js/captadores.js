@@ -578,6 +578,7 @@ function abrirLiquidacionUI() {
 
   document.getElementById('liq-cuerpo').innerHTML = html;
   document.getElementById('liq-btn-copiar').onclick = () => copiarLiquidacionTexto(nombreCap, rango, lista, total);
+  document.getElementById('liq-btn-pdf').onclick = () => descargarLiquidacionPDF(nombreCap, rango, lista, total);
   document.getElementById('modal-liquidacion').classList.add('open');
 }
 function cerrarLiquidacion() {
@@ -599,6 +600,56 @@ async function copiarLiquidacionTexto(nombreCap, rango, lista, total) {
   } catch (e) {
     toast('No se pudo copiar automáticamente -- selecciona el texto a mano', 'error');
   }
+}
+
+// Sin librería de PDF nueva -- abre una pestaña aparte con un documento
+// minimalista propio (no hereda el CSS/sidebar del panel) y dispara el
+// diálogo de impresión nativo del navegador, donde "Guardar como PDF" ya
+// es una opción de destino en todos los navegadores modernos. Evita meter
+// una dependencia (jsPDF y similares) solo para un documento tan simple.
+function descargarLiquidacionPDF(nombreCap, rango, lista, total) {
+  const ventana = window.open('', '_blank');
+  if (!ventana) { toast('El navegador ha bloqueado la ventana -- permite pop-ups para este sitio', 'error'); return; }
+
+  const filas = lista.map((c) => {
+    const aviso = textoAvisoPlano(c);
+    return `<tr>
+      <td>${escapeHtml(c.email)}</td>
+      <td style="white-space:nowrap;">${formatFechaHora(c.fecha_registro)}</td>
+      <td style="text-align:right;font-weight:600;">${(c.prima ?? 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</td>
+      <td style="color:#6B7280;">${aviso ? escapeHtml(aviso) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  ventana.document.write(`<!doctype html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Liquidación ${escapeHtml(nombreCap)}</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; color: #111827; padding: 40px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #6B7280; font-size: 13px; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #E8ECF4; }
+  th { color: #6B7280; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; }
+  .total { margin-top: 20px; padding: 14px 18px; background: #EEF4FF; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 16px; }
+  .total span:last-child { color: #1A6BFF; }
+  @media print { body { padding: 0; } }
+</style></head>
+<body>
+  <h1>Vitryna — Liquidación de ${escapeHtml(nombreCap)}</h1>
+  <div class="sub">Período: ${escapeHtml(rango)} · ${lista.length} captación${lista.length !== 1 ? 'es' : ''}</div>
+  <table>
+    <thead><tr><th>Email</th><th>Fecha y hora</th><th style="text-align:right;">Prima</th><th>Aviso</th></tr></thead>
+    <tbody>${filas}</tbody>
+  </table>
+  <div class="total"><span>Total a pagar</span><span>${total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</span></div>
+</body></html>`);
+  ventana.document.close();
+  ventana.focus();
+  // Pequeño margen para que la pestaña nueva termine de pintar antes de
+  // abrir el diálogo de impresión -- sin esto, algunos navegadores lo
+  // disparan sobre una página todavía en blanco.
+  setTimeout(() => ventana.print(), 300);
 }
 
 // ── PARÁMETROS DE LA CAMPAÑA ───────────────────────────────────────────────
@@ -685,10 +736,12 @@ async function ejecutarSorteo() {
     const fn = firebase.app().functions('europe-west1').httpsCallable('sortearGanador');
     const res = await fn({ numGanadores });
     ultimoSorteoId = res.data.id;
+    const fechaSorteo = formatFechaHora(res.data.fechaISO || new Date());
     const listaGanadores = res.data.ganadores.map((g) =>
       `<li><strong>${escapeHtml(g.email)}</strong> (captado por ${escapeHtml(nombreCaptador(g.captador_id))})</li>`
     ).join('');
     el.innerHTML = `
+      <div style="font-size:0.78rem;color:var(--text-3);margin-bottom:4px;">Sorteo del ${fechaSorteo}</div>
       ${res.data.ganadores.length > 1 ? 'Ganadores' : 'Ganador'} de ${res.data.total_participantes} participantes:
       <ul style="margin:6px 0 0 20px;padding:0;">${listaGanadores}</ul>
       <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
