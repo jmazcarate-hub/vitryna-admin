@@ -320,9 +320,10 @@
               <span>hasta</span>
               <input type="date" id="filtro-fecha-hasta" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.85rem;background:var(--surface);color:var(--text);">
             </div>
+            <button class="btn-sm" id="btn-generar-liquidacion" title="Selecciona un captador arriba para generar su listado">Generar listado para el captador</button>
           </div>
         </div>
-        <div style="padding:0 20px 8px;font-size:0.75rem;color:var(--text-3);">"Confirmados" = ya se dieron de alta como vecino real y siguen a 1 o más comercios. "Sin cuenta todavía" excluye tanto los confirmados como los que resultan ser un email de comercio ya existente. "Sospechosos" agrupa distancia, horario del turno, ritmo de captación y ubicación compartida — nunca bloquea, solo avisa; el admin decide caso a caso. El filtro de fechas es sobre cuándo se registró la captación, no sobre cuándo se resolvió el cruce (que puede llegar días después).</div>
+        <div style="padding:0 20px 8px;font-size:0.75rem;color:var(--text-3);">"Confirmados" = ya se dieron de alta como vecino real y siguen a 1 o más comercios. "Sin cuenta todavía" excluye tanto los confirmados como los que resultan ser un email de comercio ya existente. "Sospechosos" agrupa distancia, horario del turno, ritmo de captación y ubicación compartida — nunca bloquea, solo avisa. Pulsa "Detalle" en cada fila para ver el valor real de cada señal (con su umbral) y decidir Prima: Sí/No — el importe siempre se calcula solo según los parámetros de Configuración, nunca se teclea a mano. El filtro de fechas es sobre cuándo se registró la captación, no sobre cuándo se resolvió el cruce (que puede llegar días después).</div>
         <div class="filter-bar" id="filtros-captaciones">
           <div class="filter-chip active" data-filter="todos">Todos</div>
           <div class="filter-chip" data-filter="confirmados">Confirmados</div>
@@ -335,7 +336,11 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">Sorteo</div>
-          <button class="btn-primary" id="btn-sortear">Sortear ganador</button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label for="sorteo-num-ganadores" style="font-size:0.85rem;color:var(--text-2);">Nº de ganadores</label>
+            <input type="number" id="sorteo-num-ganadores" value="1" min="1" step="1" style="width:60px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.9rem;background:var(--surface);color:var(--text);">
+            <button class="btn-primary" id="btn-sortear">Sortear</button>
+          </div>
         </div>
         <div id="sorteo-resultado" style="padding:16px 20px;color:var(--text-2);font-size:0.85rem;"></div>
       </div>
@@ -360,6 +365,40 @@
         <div class="modal-footer">
           <button class="btn-sm" onclick="cerrarModalCaptador()">Cancelar</button>
           <button class="btn-primary" id="btn-guardar-captador">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal detalle de una captación (valores reales de cada señal de sospecha + decisión de prima) -->
+    <div class="modal-overlay" id="modal-detalle-captacion">
+      <div class="modal" style="max-width:640px;">
+        <div class="modal-header">
+          <div><div class="modal-title" id="dc-titulo">Detalle de la captación</div><div class="modal-sub">Valores reales de cada señal, para decidir la prima con criterio</div></div>
+          <button class="modal-close" onclick="cerrarDetalleCaptacion()">✕</button>
+        </div>
+        <div class="modal-body" id="dc-cuerpo"></div>
+        <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;">
+            <button class="btn-sm" id="dc-btn-no">Prima: No</button>
+            <button class="btn-sm" id="dc-btn-auto">Automático</button>
+            <button class="btn-primary" id="dc-btn-si">Prima: Sí</button>
+          </div>
+          <button class="btn-sm" onclick="cerrarDetalleCaptacion()">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal liquidación (listado para enviar al captador) -->
+    <div class="modal-overlay" id="modal-liquidacion">
+      <div class="modal" style="max-width:640px;">
+        <div class="modal-header">
+          <div><div class="modal-title" id="liq-titulo">Liquidación</div><div class="modal-sub">Listado claro para el captador: qué se le paga y por qué</div></div>
+          <button class="modal-close" onclick="cerrarLiquidacion()">✕</button>
+        </div>
+        <div class="modal-body" id="liq-cuerpo"></div>
+        <div class="modal-footer">
+          <button class="btn-sm" id="liq-btn-copiar">Copiar texto</button>
+          <button class="btn-sm" onclick="cerrarLiquidacion()">Cerrar</button>
         </div>
       </div>
     </div>

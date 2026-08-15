@@ -5,6 +5,11 @@ let filtroCaptadorId = '';
 let filtroFechaDesde = '';
 let filtroFechaHasta = '';
 let captadorEditId = null;
+// Parámetros de config/captadores ya cargados, reutilizados por el modal de
+// detalle para mostrar "valor real (umbral: X)" sin releer Firestore por
+// cada fila -- se repueblan cada vez que se guarda o se recarga la sección.
+let configCaptadores = {};
+let detalleCaptacionId = null;
 
 async function loadCaptadores() {
   // El roster tiene que estar cargado ANTES de que cargarCaptaciones()
@@ -43,6 +48,7 @@ async function loadCaptadores() {
     document.getElementById('btn-guardar-captador').addEventListener('click', guardarCaptador);
     document.getElementById('btn-sortear').addEventListener('click', ejecutarSorteo);
     document.getElementById('btn-recalcular-captaciones').addEventListener('click', recalcularCaptacionesUI);
+    document.getElementById('btn-generar-liquidacion').addEventListener('click', abrirLiquidacionUI);
   }
 }
 
@@ -212,24 +218,24 @@ async function recalcularCaptacionesUI() {
   }
 }
 
-// prima ya viene calculada por el backend (0 si es sospechosa o un email de
-// comercio existente, el importe de config/captadores si está confirmada y
-// limpia, en blanco si todavía no se sabe) -- este solo permite corregirla a
-// mano. Escribir prima_editada_manualmente:true evita que el siguiente
-// cruce (cada 15 min, o al insertar una captación nueva) la vuelva a pisar.
-async function actualizarPrimaUI(id, valorStr) {
-  const valor = valorStr.trim() === '' ? null : Number(valorStr);
-  if (valorStr.trim() !== '' && (Number.isNaN(valor) || valor < 0)) {
-    toast('Importe no válido', 'error');
-    cargarCaptaciones();
-    return;
-  }
+// El admin nunca teclea un importe -- solo decide Sí/No/Automático, y el
+// importe en sí siempre lo recalcula el backend a partir de los parámetros
+// vivos de config/captadores (así una fila marcada "Sí" se actualiza sola
+// si más adelante se cambia una tarifa, en vez de quedarse con un número
+// congelado del día que se decidió).
+async function decidirPrimaUI(id, decision) {
   try {
-    await db.collection('captaciones').doc(id).update({ prima: valor, prima_editada_manualmente: true });
-    toast('Prima actualizada', 'success');
+    await db.collection('captaciones').doc(id).update({ prima_decision: decision });
+    toast(decision === 'si' ? 'Prima marcada como Sí' : decision === 'no' ? 'Prima marcada como No' : 'Vuelta a automático', 'success');
+    // El importe final (prima) solo se recalcula en el próximo cruce
+    // (procesarCaptaciones cada 15 min, o Recalcular ahora) -- no aquí en
+    // el cliente, para no duplicar la fórmula en dos sitios.
+    const c = todasCaptaciones.find((x) => x.id === id);
+    if (c) c.prima_decision = decision;
+    if (detalleCaptacionId === id) renderDetalleCaptacion(id);
+    renderCaptaciones();
   } catch (e) {
-    toast('Error al guardar la prima: ' + (e.message || e), 'error');
-    cargarCaptaciones();
+    toast('Error al guardar la decisión: ' + (e.message || e), 'error');
   }
 }
 
@@ -299,6 +305,139 @@ function motivosSospechaHtml(c) {
   return `<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:var(--red-light);color:var(--red);font-weight:600;" title="${escapeHtml(texto)}">${escapeHtml(texto)}</span>`;
 }
 
+function formatFechaHora(ts) {
+  if (!ts) return '—';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
+    d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+function formatHora(ts) {
+  if (!ts) return '—';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Único punto que decide el texto/badge de "Vecino real" -- lo usan tanto
+// la fila de la tabla como el modal de detalle, para que nunca diverjan.
+function estadoCaptacionHtml(c) {
+  const m = c.vitryna_match;
+  if (c.es_comercio_existente) return '<span class="badge pro">Cuenta de Comercio</span>';
+  if (!m) return '<span class="badge free">Sin cuenta todavía</span>';
+  if (m.email_verificado) return '<span class="badge activo">Confirmado</span>';
+  return '<span class="badge free">Sin verificar email</span>';
+}
+
+// ── DETALLE DE UNA CAPTACIÓN (valor real + umbral de cada señal, y decisión de prima) ──
+function abrirDetalleCaptacion(id) {
+  detalleCaptacionId = id;
+  renderDetalleCaptacion(id);
+  document.getElementById('modal-detalle-captacion').classList.add('open');
+}
+function cerrarDetalleCaptacion() {
+  document.getElementById('modal-detalle-captacion').classList.remove('open');
+  detalleCaptacionId = null;
+}
+
+function filaDetalle(etiqueta, valor) {
+  return `<div style="display:flex;justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--border);font-size:0.85rem;">
+    <span style="color:var(--text-2);">${etiqueta}</span><span style="text-align:right;font-weight:500;">${valor}</span>
+  </div>`;
+}
+function bloqueSenal(titulo, activa, detalle) {
+  const color = activa ? 'var(--red)' : 'var(--text-2)';
+  const icono = activa ? '⚠' : '✓';
+  return `<div style="padding:10px 12px;border-radius:10px;background:${activa ? 'var(--red-light)' : 'var(--bg)'};margin-bottom:8px;">
+    <div style="font-size:0.85rem;font-weight:600;color:${color};">${icono} ${titulo}</div>
+    <div style="font-size:0.8rem;color:var(--text-2);margin-top:2px;">${detalle}</div>
+  </div>`;
+}
+
+function renderDetalleCaptacion(id) {
+  const c = todasCaptaciones.find((x) => x.id === id);
+  const cuerpo = document.getElementById('dc-cuerpo');
+  if (!c) { cuerpo.innerHTML = '<div class="empty">No se encontró la captación</div>'; return; }
+  const m = c.vitryna_match;
+  const cfg = configCaptadores;
+  document.getElementById('dc-titulo').textContent = c.email;
+
+  let html = '';
+  html += filaDetalle('Captador', escapeHtml(nombreCaptador(c.captador_id)));
+  html += filaDetalle('Registrado', formatFechaHora(c.fecha_registro));
+  html += filaDetalle('Estado', estadoCaptacionHtml(c));
+  if (c.es_comercio_existente && c.comercio_nombre) html += filaDetalle('Comercio', escapeHtml(c.comercio_nombre));
+  const amigos = c.es_comercio_existente ? c.comercio_amigos_count : (m ? m.amigos_count : null);
+  html += filaDetalle('Amigos (comercios que sigue)', amigos ?? '—');
+
+  html += `<div style="margin-top:16px;margin-bottom:8px;font-size:0.8rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.02em;">Señales, con su valor real y el umbral configurado</div>`;
+
+  let huboSenal = false;
+  if (m) {
+    const dist = m.distancia_captador_alta_m;
+    const umbralDist = cfg.distancia_sospechosa_m ?? 2000;
+    if (dist !== null && dist !== undefined) {
+      const activa = dist > umbralDist;
+      huboSenal = huboSenal || activa;
+      html += bloqueSenal('Distancia captador ↔ alta del vecino', activa,
+        `${Math.round(dist).toLocaleString('es-ES')} m (umbral: ${umbralDist.toLocaleString('es-ES')} m)`);
+    }
+
+    if (m.dentro_horario_turno !== null && m.dentro_horario_turno !== undefined) {
+      const activa = m.dentro_horario_turno === false;
+      huboSenal = huboSenal || activa;
+      const rangoTurno = `${formatHora(m.turno_inicio)} - ${m.turno_abierto ? 'sigue abierto' : formatHora(m.turno_fin)}`;
+      html += bloqueSenal('Alta dentro del turno del captador', activa,
+        `Turno: ${rangoTurno} · Alta del vecino: ${formatHora(m.creado_en)}`);
+    }
+
+    if (m.cuenta_previa_a_captacion) {
+      huboSenal = true;
+      html += bloqueSenal('Cuenta ya existía antes de la captación', true,
+        `Cuenta creada: ${formatFechaHora(m.creado_en)} · Captación registrada: ${formatFechaHora(c.fecha_registro)}`);
+    }
+
+    if (m.otros_en_misma_ubicacion) {
+      huboSenal = true;
+      const umbralRadio = cfg.radio_misma_ubicacion_m ?? 2;
+      html += bloqueSenal('Ubicación compartida con otros vecinos fuera del área', true,
+        `Coincide (±${umbralRadio} m) con otros ${m.otros_en_misma_ubicacion} vecino(s) también fuera del área de captación`);
+    }
+  }
+
+  if (c.ritmo_sospechoso) {
+    huboSenal = true;
+    const umbralIntervalo = cfg.intervalo_minimo_segundos ?? 20;
+    html += bloqueSenal('Ritmo de captación imposible', true,
+      `${c.intervalo_anterior_segundos} s desde la captación anterior de este mismo captador (mínimo esperado: ${umbralIntervalo} s)`);
+  }
+
+  if (c.es_comercio_existente && c.comercio_cuenta_previa) {
+    huboSenal = true;
+    html += bloqueSenal('La cuenta de comercio ya existía antes de la captación', true, 'Ese negocio ya estaba registrado en Vitryna antes de que este captador recogiera el email en la calle.');
+  }
+
+  if (!huboSenal) html += `<div style="font-size:0.85rem;color:var(--text-2);padding:8px 0;">Sin ninguna señal de aviso.</div>`;
+
+  const tarifaBase = cfg.comision_variable_1_amigo ?? 0;
+  const bono = cfg.bono_2_amigos ?? 0;
+  html += `<div style="margin-top:16px;margin-bottom:8px;font-size:0.8rem;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:0.02em;">Prima</div>`;
+  html += filaDetalle('Importe si se paga (según parámetros actuales)',
+    `${(c.prima_calculada ?? 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}` +
+    ((amigos ?? 0) >= 2 ? ` <span style="color:var(--text-2);font-weight:400;">(${tarifaBase.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })} + ${bono.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })} bono)</span>` : ''));
+  html += filaDetalle('Sugerencia automática', c.prima_sugerida === null || c.prima_sugerida === undefined ? 'Pendiente, sin resolver todavía' : c.prima_sugerida.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }));
+  const decisionTexto = c.prima_decision === 'si' ? 'Sí, pagar (decisión manual)' : c.prima_decision === 'no' ? 'No pagar (decisión manual)' : 'Sin decidir — manda la sugerencia automática';
+  html += filaDetalle('Decisión del admin', decisionTexto);
+  html += `<div style="margin-top:10px;padding:12px;border-radius:10px;background:var(--blue-light);display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-weight:600;">Prima final</span>
+    <span style="font-weight:800;font-size:1.15rem;color:var(--blue);">${(c.prima ?? 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</span>
+  </div>`;
+
+  cuerpo.innerHTML = html;
+
+  document.getElementById('dc-btn-si').onclick = () => decidirPrimaUI(id, 'si');
+  document.getElementById('dc-btn-no').onclick = () => decidirPrimaUI(id, 'no');
+  document.getElementById('dc-btn-auto').onclick = () => decidirPrimaUI(id, null);
+}
+
 function renderCaptaciones() {
   const lista = todasCaptaciones.filter((c) => {
     const match = c.vitryna_match;
@@ -326,34 +465,140 @@ function renderCaptaciones() {
       <thead><tr><th>Email</th><th>Captador</th><th>Registrado</th><th>Vecino real</th><th style="text-align:center;">Amigos</th><th>Aviso</th><th>Prima</th><th></th></tr></thead>
       <tbody>${lista.map((c) => {
         const m = c.vitryna_match;
-        // es_comercio_existente: el email SÍ tiene cuenta, solo que es de
-        // comercio -- "Sin cuenta todavía" sería falso para este caso.
-        const estado = c.es_comercio_existente
-          ? '<span class="badge pro">Cuenta de Comercio</span>'
-          : !m
-            ? '<span class="badge free">Sin cuenta todavía</span>'
-            : m.email_verificado
-              ? '<span class="badge activo">Confirmado</span>'
-              : '<span class="badge free">Sin verificar email</span>';
         const amigos = c.es_comercio_existente ? c.comercio_amigos_count : (m ? m.amigos_count : null);
+        const primaTexto = c.prima_sugerida === null && c.prima_decision !== 'si' && c.prima_decision !== 'no'
+          ? 'Pendiente'
+          : (c.prima ?? 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
+        const decisionTag = c.prima_decision === 'si'
+          ? '<span style="font-size:0.68rem;color:var(--green,#10B981);font-weight:600;">Sí</span>'
+          : c.prima_decision === 'no'
+            ? '<span style="font-size:0.68rem;color:var(--red);font-weight:600;">No</span>'
+            : '<span style="font-size:0.68rem;color:var(--text-3);">auto</span>';
         return `<tr>
           <td>${escapeHtml(c.email)}</td>
           <td style="font-size:0.85rem;">${escapeHtml(nombreCaptador(c.captador_id))}</td>
-          <td style="font-size:0.8rem;color:var(--text-2)">${formatDate(c.fecha_registro)}</td>
-          <td>${estado}${c.es_comercio_existente && c.comercio_nombre ? `<div style="font-size:0.72rem;color:var(--text-2);margin-top:2px;">${escapeHtml(c.comercio_nombre)}</div>` : ''}</td>
+          <td style="font-size:0.8rem;color:var(--text-2);white-space:nowrap;">${formatFechaHora(c.fecha_registro)}</td>
+          <td>${estadoCaptacionHtml(c)}${c.es_comercio_existente && c.comercio_nombre ? `<div style="font-size:0.72rem;color:var(--text-2);margin-top:2px;">${escapeHtml(c.comercio_nombre)}</div>` : ''}</td>
           <td style="text-align:center;">${amigos ?? '—'}</td>
           <td>${motivosSospechaHtml(c)}</td>
-          <td>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <input type="number" step="0.01" min="0" style="width:70px;" value="${c.prima ?? ''}" placeholder="—"
-                onchange="actualizarPrimaUI('${c.id}', this.value)">
-              ${c.prima_editada_manualmente ? '<span title="Importe corregido a mano, ya no se recalcula solo" style="font-size:0.7rem;color:var(--text-2);">✎</span>' : ''}
-            </div>
+          <td style="font-size:0.85rem;">${primaTexto} ${decisionTag}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn-sm" onclick="abrirDetalleCaptacion('${c.id}')">Detalle</button>
+            <button class="btn-sm" onclick="eliminarCaptacionUI('${c.id}', '${escapeHtml(c.email)}')">Eliminar</button>
           </td>
-          <td><button class="btn-sm" onclick="eliminarCaptacionUI('${c.id}', '${escapeHtml(c.email)}')">Eliminar</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
+}
+
+// Texto en lenguaje llano de por qué una captación no cuenta (o está en
+// revisión) -- pensado para que lo entienda el captador, no para depurar el
+// sistema. Distinto de motivosSospechaHtml(), que es la versión técnica
+// para el admin.
+function textoAvisoPlano(c) {
+  const m = c.vitryna_match;
+  if (c.prima_decision === 'no') return 'No cuenta (revisado por el equipo)';
+  if (c.prima_decision === 'si') return 'Cuenta (revisado por el equipo)';
+  if (c.es_comercio_existente) return 'Ese email ya era una cuenta de comercio, no de vecino';
+  if (!m) return 'Todavía sin confirmar como vecino real';
+  if (m.sospechoso || c.ritmo_sospechoso) {
+    const motivos = [];
+    if (m.motivos_sospecha?.includes('distancia_alta')) motivos.push('te dio de alta lejos de tu ubicación');
+    if (m.motivos_sospecha?.includes('fuera_de_horario')) motivos.push('fuera de tu turno');
+    if (m.motivos_sospecha?.includes('cuenta_previa_a_captacion')) motivos.push('la cuenta ya existía antes de captarlo');
+    if (m.motivos_sospecha?.includes('ubicacion_compartida')) motivos.push('ubicación compartida con otros captados');
+    if (c.ritmo_sospechoso) motivos.push('demasiado seguida de la anterior');
+    return 'En revisión: ' + motivos.join(', ');
+  }
+  if ((m.amigos_count ?? 0) < 1) return 'Registrado, todavía sin seguir a ningún comercio';
+  return '';
+}
+
+function formatDateInput(str) {
+  const [y, m, d] = str.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// ── LIQUIDACIÓN (listado claro para enviar a un captador) ──────────────────
+// Reutiliza el filtro de captador + fechas que ya está en pantalla, pero
+// ignora los chips de estado (Confirmados/Sospechosos/...) -- el captador
+// necesita ver TODAS sus captaciones del período, incluidas las que no se
+// pagan, para entender de un vistazo por qué.
+function abrirLiquidacionUI() {
+  if (!filtroCaptadorId) {
+    toast('Selecciona primero un captador en el filtro de arriba', 'error');
+    return;
+  }
+  const nombreCap = nombreCaptador(filtroCaptadorId);
+  const lista = todasCaptaciones.filter((c) => {
+    if (c.captador_id !== filtroCaptadorId) return false;
+    if (filtroFechaDesde || filtroFechaHasta) {
+      const fecha = c.fecha_registro?.toDate?.();
+      if (!fecha) return false;
+      if (filtroFechaDesde && fecha < new Date(filtroFechaDesde + 'T00:00:00')) return false;
+      if (filtroFechaHasta && fecha > new Date(filtroFechaHasta + 'T23:59:59')) return false;
+    }
+    return true;
+  }).sort((a, b) => (a.fecha_registro?.toMillis?.() ?? 0) - (b.fecha_registro?.toMillis?.() ?? 0));
+
+  if (!lista.length) {
+    toast('Este captador no tiene captaciones en el rango de fechas seleccionado', 'error');
+    return;
+  }
+
+  const rango = (filtroFechaDesde || filtroFechaHasta)
+    ? `${filtroFechaDesde ? formatDateInput(filtroFechaDesde) : 'siempre'} a ${filtroFechaHasta ? formatDateInput(filtroFechaHasta) : 'hoy'}`
+    : 'todas las fechas';
+  const total = lista.reduce((sum, c) => sum + (c.prima ?? 0), 0);
+
+  document.getElementById('liq-titulo').textContent = `Liquidación de ${nombreCap}`;
+
+  let html = `<div style="font-size:0.85rem;color:var(--text-2);margin-bottom:14px;">Período: ${escapeHtml(rango)} · ${lista.length} captación${lista.length !== 1 ? 'es' : ''}</div>`;
+  html += `<div style="overflow-x:auto;"><table style="width:100%;font-size:0.82rem;border-collapse:collapse;">
+    <thead><tr>
+      <th style="text-align:left;padding:6px 8px;">Email</th>
+      <th style="text-align:left;padding:6px 8px;">Fecha y hora</th>
+      <th style="text-align:right;padding:6px 8px;">Prima</th>
+      <th style="text-align:left;padding:6px 8px;">Aviso</th>
+    </tr></thead>
+    <tbody>${lista.map((c) => {
+      const aviso = textoAvisoPlano(c);
+      return `<tr style="border-top:1px solid var(--border);">
+        <td style="padding:6px 8px;">${escapeHtml(c.email)}</td>
+        <td style="padding:6px 8px;white-space:nowrap;">${formatFechaHora(c.fecha_registro)}</td>
+        <td style="padding:6px 8px;text-align:right;font-weight:600;">${(c.prima ?? 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</td>
+        <td style="padding:6px 8px;color:var(--text-2);">${aviso ? escapeHtml(aviso) : '—'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+  html += `<div style="margin-top:14px;padding:14px;border-radius:10px;background:var(--blue-light);display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-weight:700;">Total a pagar</span>
+    <span style="font-weight:800;font-size:1.3rem;color:var(--blue);">${total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</span>
+  </div>`;
+
+  document.getElementById('liq-cuerpo').innerHTML = html;
+  document.getElementById('liq-btn-copiar').onclick = () => copiarLiquidacionTexto(nombreCap, rango, lista, total);
+  document.getElementById('modal-liquidacion').classList.add('open');
+}
+function cerrarLiquidacion() {
+  document.getElementById('modal-liquidacion').classList.remove('open');
+}
+
+async function copiarLiquidacionTexto(nombreCap, rango, lista, total) {
+  let texto = `Liquidación de ${nombreCap}\nPeríodo: ${rango}\n\n`;
+  lista.forEach((c) => {
+    const aviso = textoAvisoPlano(c);
+    texto += `${formatFechaHora(c.fecha_registro)} · ${c.email} · ${(c.prima ?? 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`;
+    if (aviso) texto += ` · ${aviso}`;
+    texto += '\n';
+  });
+  texto += `\nTOTAL A PAGAR: ${total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}\n`;
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast('Copiado al portapapeles', 'success');
+  } catch (e) {
+    toast('No se pudo copiar automáticamente -- selecciona el texto a mano', 'error');
+  }
 }
 
 // ── PARÁMETROS DE LA CAMPAÑA ───────────────────────────────────────────────
@@ -364,6 +609,7 @@ async function cargarConfigCaptadores() {
     // ver CLAUDE.md) -- la configuración real vive bajo config/{doc}.
     const doc = await db.collection('config').doc('captadores').get();
     const d = doc.data() || {};
+    configCaptadores = d;
     const ayuda = (texto) => `<div style="font-size:0.73rem;color:var(--text-3);margin-top:4px;">${texto}</div>`;
     el.innerHTML = `
       <div class="field-row">
@@ -412,14 +658,15 @@ async function cargarConfigCaptadores() {
 
 async function guardarConfigCaptadores() {
   try {
-    await db.collection('config').doc('captadores').set({
+    configCaptadores = {
       distancia_sospechosa_m: Number(document.getElementById('cc-distancia').value) || 0,
       radio_misma_ubicacion_m: Number(document.getElementById('cc-radio-ubicacion').value) || 0,
       intervalo_minimo_segundos: Number(document.getElementById('cc-intervalo').value) || 0,
       tarifa_hora: Number(document.getElementById('cc-tarifa-hora').value) || 0,
       comision_variable_1_amigo: Number(document.getElementById('cc-variable').value) || 0,
       bono_2_amigos: Number(document.getElementById('cc-bono').value) || 0,
-    }, { merge: true });
+    };
+    await db.collection('config').doc('captadores').set(configCaptadores, { merge: true });
     toast('Parámetros guardados', 'success');
   } catch (e) {
     toast('Error al guardar: ' + (e.message || e), 'error');
@@ -430,18 +677,22 @@ async function guardarConfigCaptadores() {
 let ultimoSorteoId = null;
 
 async function ejecutarSorteo() {
-  if (!confirm('¿Ejecutar el sorteo ahora? Se elegirá un ganador entre todos los emails registrados.')) return;
+  const numGanadores = Math.max(1, Number(document.getElementById('sorteo-num-ganadores').value) || 1);
+  if (!confirm(`¿Ejecutar el sorteo ahora? Se elegirá${numGanadores > 1 ? `n ${numGanadores} ganadores` : ' un ganador'} entre todos los emails registrados.`)) return;
   const el = document.getElementById('sorteo-resultado');
   el.textContent = 'Sorteando...';
   try {
     const fn = firebase.app().functions('europe-west1').httpsCallable('sortearGanador');
-    const res = await fn({ numGanadores: 1 });
-    const ganador = res.data.ganadores[0];
+    const res = await fn({ numGanadores });
     ultimoSorteoId = res.data.id;
+    const listaGanadores = res.data.ganadores.map((g) =>
+      `<li><strong>${escapeHtml(g.email)}</strong> (captado por ${escapeHtml(nombreCaptador(g.captador_id))})</li>`
+    ).join('');
     el.innerHTML = `
-      Ganador: <strong>${escapeHtml(ganador.email)}</strong> (captado por ${escapeHtml(nombreCaptador(ganador.captador_id))}) — de ${res.data.total_participantes} participantes.
+      ${res.data.ganadores.length > 1 ? 'Ganadores' : 'Ganador'} de ${res.data.total_participantes} participantes:
+      <ul style="margin:6px 0 0 20px;padding:0;">${listaGanadores}</ul>
       <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn-primary" id="btn-email-ganador">Enviar email al ganador</button>
+        <button class="btn-primary" id="btn-email-ganador">${res.data.ganadores.length > 1 ? 'Enviar email a los ganadores' : 'Enviar email al ganador'}</button>
         <button class="btn-sm" id="btn-email-no-ganadores">Avisar al resto de participantes</button>
       </div>
     `;
@@ -462,6 +713,7 @@ async function enviarEmailGanadorUI() {
   if (!lugarRecogida.trim()) { toast('El lugar de recogida no puede estar vacío', 'error'); return; }
 
   const btn = document.getElementById('btn-email-ganador');
+  const textoOriginal = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Enviando...';
   try {
@@ -472,7 +724,7 @@ async function enviarEmailGanadorUI() {
   } catch (e) {
     toast('Error al enviar: ' + (e.message || e), 'error');
     btn.disabled = false;
-    btn.textContent = 'Enviar email al ganador';
+    btn.textContent = textoOriginal;
   }
 }
 
