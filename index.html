@@ -404,6 +404,25 @@
       </div>
     </div>
 
+    <!-- Modal lugar de recogida del premio (multilínea, para la dirección completa) -->
+    <div class="modal-overlay" id="modal-lugar-recogida">
+      <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+          <div><div class="modal-title">¿Dónde se recoge el premio?</div><div class="modal-sub">Se incluye tal cual en el email al ganador, con los saltos de línea que pongas</div></div>
+          <button class="modal-close" onclick="cerrarLugarRecogida()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="field-group">
+            <textarea id="lr-texto" rows="4" placeholder="Ej:&#10;Vitryna&#10;Calle Mayor 12, 1ºA&#10;Zaragoza&#10;Lunes a viernes, 10:00 - 14:00"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-sm" onclick="cerrarLugarRecogida()">Cancelar</button>
+          <button class="btn-primary" id="lr-btn-enviar">Enviar email</button>
+        </div>
+      </div>
+    </div>
+
     <!-- FINANZAS -->
     <div class="section" id="section-finanzas">
       <div class="card"><div class="card-header"><div class="card-title">Ingresos estimados del piloto</div></div><div id="finanzas-content"><div class="spinner"></div></div></div>

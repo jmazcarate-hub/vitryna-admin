@@ -84,7 +84,8 @@ function renderRosterCaptadores() {
   const el = document.getElementById('tabla-captadores');
   if (!todosCaptadores.length) { el.innerHTML = '<div class="empty">Sin captadores dados de alta todavía</div>'; return; }
   el.innerHTML = `
-    <table>
+    <div style="overflow-x:auto;">
+    <table style="min-width:640px;">
       <thead><tr><th>Nombre</th><th>Puesto</th><th style="text-align:center;">Estado</th><th style="text-align:center;">Hoy</th><th>Acciones</th></tr></thead>
       <tbody>${todosCaptadores.map((c) => `<tr>
         <td style="font-weight:500">${c.nombre ? escapeHtml(c.nombre) : '<span style="color:var(--text-2);font-style:italic;">(sin nombre — id ' + escapeHtml(c.id) + ')</span>'}</td>
@@ -94,14 +95,15 @@ function renderRosterCaptadores() {
             ${c.activo ? 'Activo' : 'Inactivo'}
           </span>
         </td>
-        <td style="text-align:center;font-size:0.85rem;">${c.resumen_hoy?.emails_hoy ?? 0} emails · ${c.resumen_hoy?.vecinos_confirmados_hoy ?? 0} conf.</td>
-        <td>
+        <td style="text-align:center;font-size:0.85rem;white-space:nowrap;">${c.resumen_hoy?.emails_hoy ?? 0} emails · ${c.resumen_hoy?.vecinos_confirmados_hoy ?? 0} conf.</td>
+        <td style="white-space:nowrap;">
           <button class="btn-sm" onclick="abrirModalCaptador('${c.id}')">Editar</button>
           <button class="btn-sm" onclick="resetPinCaptadorUI('${c.id}')">Resetear PIN</button>
           <button class="btn-sm" onclick="eliminarCaptadorUI('${c.id}', '${escapeHtml(c.nombre || c.id)}')">Eliminar</button>
         </td>
       </tr>`).join('')}</tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
 async function toggleActivoCaptador(id, nuevoValor) {
@@ -461,7 +463,8 @@ function renderCaptaciones() {
     <div style="padding:8px 20px;font-size:0.78rem;color:var(--text-2);border-bottom:1px solid var(--border);">
       ${lista.length} de ${todasCaptaciones.length} captaciones (últimas 500)
     </div>
-    <table>
+    <div style="overflow-x:auto;">
+    <table style="min-width:840px;">
       <thead><tr><th>Email</th><th>Captador</th><th>Registrado</th><th>Vecino real</th><th style="text-align:center;">Amigos</th><th>Aviso</th><th>Prima</th><th></th></tr></thead>
       <tbody>${lista.map((c) => {
         const m = c.vitryna_match;
@@ -488,7 +491,8 @@ function renderCaptaciones() {
           </td>
         </tr>`;
       }).join('')}</tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
 // Texto en lenguaje llano de por qué una captación no cuenta (o está en
@@ -759,25 +763,43 @@ async function ejecutarSorteo() {
 // El lugar de recogida del premio todavía no está decidido -- se pide aquí
 // como texto libre en vez de una plantilla fija, para no mandar nunca un
 // email real con un hueco a medio rellenar (p.ej. "recógelo en .........").
-async function enviarEmailGanadorUI() {
+// El lugar de recogida es texto libre multilínea (dirección completa,
+// horario...) -- un prompt() del navegador solo admite una línea, así que
+// va en un textarea dentro de un modal propio. El \n que teclee el admin
+// se convierte en <br> en el email (ver captadores.js del backend), así
+// que los saltos de línea que ponga aquí se ven igual en el correo.
+function enviarEmailGanadorUI() {
   if (!ultimoSorteoId) return;
-  const lugarRecogida = prompt('¿Dónde puede recoger el premio el ganador? (se incluirá tal cual en el email)');
-  if (lugarRecogida === null) return;
+  document.getElementById('lr-texto').value = '';
+  document.getElementById('modal-lugar-recogida').classList.add('open');
+  document.getElementById('lr-btn-enviar').onclick = confirmarEnvioEmailGanador;
+}
+function cerrarLugarRecogida() {
+  document.getElementById('modal-lugar-recogida').classList.remove('open');
+}
+
+async function confirmarEnvioEmailGanador() {
+  const lugarRecogida = document.getElementById('lr-texto').value;
   if (!lugarRecogida.trim()) { toast('El lugar de recogida no puede estar vacío', 'error'); return; }
 
-  const btn = document.getElementById('btn-email-ganador');
-  const textoOriginal = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Enviando...';
+  const btnModal = document.getElementById('lr-btn-enviar');
+  const btnFila = document.getElementById('btn-email-ganador');
+  const textoOriginal = btnFila.textContent;
+  btnModal.disabled = true;
+  btnFila.disabled = true;
+  btnFila.textContent = 'Enviando...';
   try {
     const fn = firebase.app().functions('europe-west1').httpsCallable('enviarEmailGanador');
     const res = await fn({ sorteoId: ultimoSorteoId, lugarRecogida });
     toast(`Email enviado (${res.data.enviados}/${res.data.total})`, 'success');
-    btn.textContent = 'Email enviado ✓';
+    btnFila.textContent = 'Email enviado ✓';
+    cerrarLugarRecogida();
   } catch (e) {
     toast('Error al enviar: ' + (e.message || e), 'error');
-    btn.disabled = false;
-    btn.textContent = textoOriginal;
+    btnFila.disabled = false;
+    btnFila.textContent = textoOriginal;
+  } finally {
+    btnModal.disabled = false;
   }
 }
 
