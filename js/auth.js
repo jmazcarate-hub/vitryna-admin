@@ -49,7 +49,14 @@ function formatDate(ts) {
 function vencInfo(ts) {
   if (!ts) return { texto: '—', clase: '' };
   const d = ts.toDate ? ts.toDate() : new Date(ts);
-  const dias = Math.ceil((d - new Date()) / 86400000);
+  // floor, no ceil -- así coincide con gestionarVencimientoPlanes (backend,
+  // el aviso de email/push) y ComercioModel.diasRestantes (app Flutter),
+  // que ya usan floor. Con ceil, el panel admin mostraba sistemáticamente
+  // un día más que el aviso real en cuanto sobraba cualquier fracción de
+  // día (detectado 18/08/2026 comprobando por qué un aviso decía "vence en
+  // 3 días" y la app mostraba 4 -- ese desfase concreto resultó ser de otra
+  // causa, pero esta inconsistencia de fórmula sí era real, aquí).
+  const dias = Math.floor((d - new Date()) / 86400000);
   if (dias < 0) return { texto: 'Caducado ' + formatDate(ts), clase: 'vence-caducado' };
   if (dias <= 7) return { texto: `Vence en ${dias}d (${formatDate(ts)})`, clase: 'vence-pronto' };
   return { texto: formatDate(ts), clase: 'vence-ok' };
