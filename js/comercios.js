@@ -339,13 +339,41 @@ async function cambiarPlanComercio(plan) {
       estado_pago: plan !== 'free',
       plan_hasta: hasta ? firebase.firestore.Timestamp.fromDate(hasta) : null,
     };
-    if (plan !== 'free') updateData.subscription_cancelada = false;
+    if (plan !== 'free') {
+      updateData.subscription_cancelada = false;
+    } else {
+      // Pasar a Free manualmente deja el comercio como si nunca hubiera
+      // tenido un plan de pago -- sin esto, campos de un ciclo Stripe
+      // anterior (o de una bajada automática previa) se quedaban colgando
+      // sin ningún efecto real hoy, pero listos para confundir en el futuro
+      // si el comercio vuelve a contratar. bajado_a_free/_motivo también se
+      // limpian: si quedaban de una bajada automática anterior a este cambio
+      // manual, no deben seguir disparando el banner rojo de "plan
+      // finalizado" en la app -- el guardado de NO ponerlos aquí (decisión
+      // deliberada, ver CLAUDE.md) sigue aplicando igual, esto solo limpia
+      // restos de un ciclo previo.
+      updateData.stripe_subscription_id = firebase.firestore.FieldValue.delete();
+      updateData.ultimo_pago_stripe = firebase.firestore.FieldValue.delete();
+      updateData.subscription_cancelada = firebase.firestore.FieldValue.delete();
+      updateData.aviso_vencimiento_enviado = firebase.firestore.FieldValue.delete();
+      updateData.bajado_a_free = firebase.firestore.FieldValue.delete();
+      updateData.bajado_a_free_motivo = firebase.firestore.FieldValue.delete();
+    }
     await db.collection('comercios').doc(comercioModalId).update(updateData);
     const idx = todosComercios.findIndex(c => c.id === comercioModalId);
     if (idx >= 0) {
       todosComercios[idx].plan_suscripcion = plan;
       todosComercios[idx].plan_hasta = hasta ? firebase.firestore.Timestamp.fromDate(hasta) : null;
-      if (plan !== 'free') todosComercios[idx].subscription_cancelada = false;
+      if (plan !== 'free') {
+        todosComercios[idx].subscription_cancelada = false;
+      } else {
+        delete todosComercios[idx].stripe_subscription_id;
+        delete todosComercios[idx].ultimo_pago_stripe;
+        delete todosComercios[idx].subscription_cancelada;
+        delete todosComercios[idx].aviso_vencimiento_enviado;
+        delete todosComercios[idx].bajado_a_free;
+        delete todosComercios[idx].bajado_a_free_motivo;
+      }
     }
     toast('Plan actualizado', 'success');
     cerrarModalComercio();
